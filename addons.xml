@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <addons>
-<addon id="plugin.video.deccandelight" version="2.0.65" name="Deccan Delight" provider-name="gujal">
+<addon id="plugin.video.deccandelight" version="2.0.66" name="Deccan Delight" provider-name="gujal">
 <requires>
 	<import addon="xbmc.python" version="3.0.0" />
 	<import addon="script.module.six" />
@@ -27,7 +27,7 @@
 		<screenshot>resources/images/screenshot-02.jpg</screenshot>
 		<screenshot>resources/images/screenshot-03.jpg</screenshot>
 	</assets>
-	<reuselanguageinvoker>true</reuselanguageinvoker>
+	<reuselanguageinvoker>false</reuselanguageinvoker>
 </extension>
 </addon>
 <addon id="repository.anshul" name="Anshul Kodi Repo" version="1.0.0" provider-name="anshul">
