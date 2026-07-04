@@ -50,7 +50,7 @@ def clear_cache():
 if control.get_setting('version') != control._version:
     control._addon.setSetting('version', control._version)
     clear_cache()
-    heading = '[B][COLOR gold]Deccan Delight[/COLOR] - [COLOR white]Changelog[/COLOR][/B]'
+    heading = '[B][COLOR gold]Indian Movie Hub[/COLOR] - [COLOR white]Changelog[/COLOR][/B]'
     with open(_changelog) as f:
         announce = f.read()
     dialog = control.Dialog()
@@ -523,7 +523,7 @@ def downloadVideo(url, name):
         resp = getResponse(url, headers, 0)
 
         if not resp:
-            dialog.ok("Deccan Delight", 'Download Failed[CR]No response')
+            dialog.ok("Indian Movie Hub", 'Download Failed[CR]No response')
             return False
         try:
             content = int(resp.headers['Content-Length'])
@@ -537,7 +537,7 @@ def downloadVideo(url, name):
             control.log("Download is resumable")
 
         if content < 1:
-            dialog.ok("Deccan Delight", 'Unknown File Size[CR]Cannot Download')
+            dialog.ok("Indian Movie Hub", 'Unknown File Size[CR]Cannot Download')
             return False
 
         size = 8192
@@ -647,7 +647,7 @@ def downloadVideo(url, name):
 
     dp = control.pDialog
     name = re.sub(r'\[/?(?:COLOR|I|CR|B).*?]', '', name).strip()
-    dp.create('Deccan Delight Download', name[:50])
+    dp.create('Indian Movie Hub Download', name[:50])
     tmp_file = tempfile.mktemp(dir=download_path, suffix=".mp4")
     tmp_file = control.makeFilename(tmp_file)
     vidfile = control.makeFilename(download_path + clean_filename(name) + ".mp4")
