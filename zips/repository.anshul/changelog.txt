@@ -1,0 +1,2 @@
+[B]Version 1.0.0 - 04 Jul 2026[/B]
+- Initial release of Anshul Kodi Repo

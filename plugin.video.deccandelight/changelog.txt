@@ -1,0 +1,34 @@
+[B]Version 2.0.60 - 04 Jul 2026[/B]
+- Fork maintained in Anshul Kodi Repo
+- Base Code Changes
+    - Removed version-check web request on first run
+
+- Scrapers Fixed/Updated:
+    - movierulz (new domain 5movierulz.repair)
+
+[B]Version 2.0.59 - 16 Mar 2026[/B]
+- Base Code Changes
+    - None
+
+- Scrapers Added:
+    - None
+ 
+- Scrapers Fixed/Updated:
+    - filmlinks4u
+    - filmlinks4u pro
+    - gomovies
+    - hindilinks4u
+    - playdesi
+    - tamilyogi
+
+- Scrapers Removed:
+    - None
+
+- Broken Scrapers
+    - apnetv (cloudflare captcha)
+    - watchapne (cloudflare captcha)
+    - cinevez
+    - skytamil
+    - tamiltvshows
+    - tamildhool
+    - serialghar
