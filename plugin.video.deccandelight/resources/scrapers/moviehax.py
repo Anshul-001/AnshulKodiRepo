@@ -27,7 +27,7 @@ from six.moves import urllib_parse
 class moviehax(Scraper):
     def __init__(self):
         Scraper.__init__(self)
-        self.bu = 'https://moviehax.top/genre/'
+        self.bu = 'https://moviehax.watch/genre/'
         self.icon = self.ipath + 'moviehax.png'
         self.list = {'01Hindi': self.bu + 'bollywood-movies/',
                      '02Netflix': self.bu + 'netflix/',

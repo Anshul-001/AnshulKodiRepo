@@ -26,7 +26,7 @@ from six.moves import urllib_parse
 class tyogi(Scraper):
     def __init__(self):
         Scraper.__init__(self)
-        self.bu = 'https://1tamilyogi.kaufen/'
+        self.bu = 'https://tamilyogi.legal/'
         self.icon = self.ipath + 'tyogi.png'
 
     def get_menu(self):

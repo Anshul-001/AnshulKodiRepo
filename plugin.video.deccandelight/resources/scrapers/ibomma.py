@@ -28,7 +28,7 @@ from six.moves import urllib_parse
 class ibomma(Scraper):
     def __init__(self):
         Scraper.__init__(self)
-        self.bu = 'https://axn.bappam.eu/'
+        self.bu = 'https://ibommamovie.com/'
         self.icon = self.ipath + 'ibomma.png'
         self.list = {
             '01Telugu Movies': self.bu + 'telugu-movies/',

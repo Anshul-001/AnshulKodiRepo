@@ -26,7 +26,7 @@ from six.moves import urllib_parse
 class yodesi(Scraper):
     def __init__(self):
         Scraper.__init__(self)
-        self.bu = 'https://www.yodesi.net/'
+        self.bu = 'https://yodesionline.com/'
         self.icon = self.ipath + 'yodesi.png'
         self.videos = []
         self.list = {'01Star Plus': self.bu + 'star-plus/',

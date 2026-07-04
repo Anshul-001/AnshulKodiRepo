@@ -26,7 +26,7 @@ from resources.lib.base import Scraper
 class manatv(Scraper):
     def __init__(self):
         Scraper.__init__(self)
-        self.bu = 'https://manatelugu.com/'
+        self.bu = 'https://teluguz.com/'
         self.icon = self.ipath + 'manatv.png'
         self.list = {'01MAA TV Serials': 'MAA Serials',
                      '02Gemini TV Serials': 'Gemini Serials',

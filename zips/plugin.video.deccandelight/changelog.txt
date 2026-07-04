@@ -1,3 +1,19 @@
+[B]Version 2.1.1 - 04 Jul 2026[/B]
+- Scrapers Updated (domains):
+    - tamilyogi: 1tamilyogi.kaufen -> tamilyogi.legal
+    - moviehax: moviehax.top -> moviehax.watch
+    - gomovies: ogomovies.fit -> ogomovies.org
+    - hindilinks4u pro: hindilinks4u.codes -> hindilinks4u.foundation
+    - playdesi: playdesi.info -> play-desi.org
+    - yodesi: yodesi.net -> yodesionline.com
+    - manatelugu: manatelugu.com -> teluguz.com
+    - ibomma: axn.bappam.eu (hijacked) -> ibommamovie.com
+- Note: several of these sites relaunched with new page layouts; their
+  domains are now current but their listing parsers still need updating
+  (tracked for a follow-up, same as the movierulz layout fix).
+- Verified live/unchanged (no edit needed): tamilgun, filmlinks4u,
+  einthusan, hum, geo, watch-movies.com.pk
+
 [B]Version 2.1.0 - 04 Jul 2026[/B]
 - New Features
     - Global Search: a "* Search All Sites *" entry at the top of the
