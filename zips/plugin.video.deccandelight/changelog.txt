@@ -1,3 +1,10 @@
+[B]Version 2.0.63 - 04 Jul 2026[/B]
+- Scrapers Fixed/Updated:
+    - movierulz: site relaunched with new page layout - fixed listing
+      container (#container -> #list), pagination, and updated all
+      category slugs (tamil-movies, bollywood-movie, etc). Listings,
+      search, and playback verified working again.
+
 [B]Version 2.0.62 - 04 Jul 2026[/B]
 - Base Code Changes
     - Faster navigation: reuse Python interpreter between clicks

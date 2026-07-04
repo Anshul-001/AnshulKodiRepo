@@ -36,18 +36,18 @@ class mrulz(Scraper):
         base = self.first_working_mirror(MIRRORS, 'category/telugu-movie/', 'boxed film')
         self.bu = base + 'category/'
         self.icon = self.ipath + 'mrulz.png'
-        self.list = {'01Tamil Movies': self.bu + 'tamil-movie/',
-                     '02Telugu Movies': self.bu + 'telugu-movie/',
-                     '03Malayalam Movies': self.bu + 'malayalam-movie/',
-                     '04Kannada Movies': self.bu + 'kannada-movie/',
-                     '11Hindi Movies': self.bu[:-9] + 'bollywood-movie-free/',
-                     '21English Movies': self.bu + 'hollywood-movie-2023/',
-                     '31Tamil Dubbed Movies': self.bu + 'tamil-dubbed-movie-2/',
-                     '32Telugu Dubbed Movies': self.bu + 'telugu-dubbed-movie-2/',
-                     '33Hindi Dubbed Movies': self.bu + 'hindi-dubbed-movie/',
-                     '34Bengali Movies': self.bu + 'bengali-movie/',
-                     '35Punjabi Movies': self.bu + 'punjabi-movie/',
-                     '41[COLOR cyan]Adult Movies[/COLOR]': self.bu + 'adult-movie/',
+        self.list = {'01Tamil Movies': self.bu + 'tamil-movies/',
+                     '02Telugu Movies': self.bu + 'telugu-movies/',
+                     '03Malayalam Movies': self.bu + 'malayalam-movies/',
+                     '04Kannada Movies': self.bu + 'kannada-movies/',
+                     '11Hindi Movies': self.bu + 'bollywood-movie/',
+                     '21English Movies': self.bu + 'hollywood-movies/',
+                     '31Tamil Dubbed Movies': self.bu + 'tamil-dubbed-movies/',
+                     '32Telugu Dubbed Movies': self.bu + 'telugu-dubbed-movies/',
+                     '33Hindi Dubbed Movies': self.bu + 'hindi-dubbed-movies/',
+                     '34Bengali Movies': self.bu + 'bengali-movies/',
+                     '35Punjabi Movies': self.bu + 'punjabi-movies/',
+                     '41[COLOR cyan]Adult Movies[/COLOR]': self.bu + 'adult-movies/',
                      '42[COLOR cyan]Adult 18+[/COLOR]': self.bu + 'adult-18/',
                      '99[COLOR yellow]** Search **[/COLOR]': self.bu[:-9] + '?s='}
 
@@ -62,9 +62,9 @@ class mrulz(Scraper):
             url = url + search_text
 
         html = client.request(url, headers=self.hdr)
-        mlink = SoupStrainer('div', {'id': 'container'})
+        mlink = SoupStrainer('div', {'id': 'list'})
         mdiv = BeautifulSoup(html, "html.parser", parse_only=mlink)
-        plink = SoupStrainer('nav', {'id': 'posts-nav'})
+        plink = SoupStrainer('div', {'class': 'pagination'})
         Paginator = BeautifulSoup(html, "html.parser", parse_only=plink)
         items = mdiv.find_all('div', {'class': 'boxed film'})
 
@@ -80,11 +80,14 @@ class mrulz(Scraper):
                 thumb = self.icon
             movies.append((title, thumb, url))
 
-        if 'Older' in str(Paginator):
-            nextli = Paginator.find('div', {'class': 'nav-older'})
-            purl = nextli.find('a')['href']
-            pages = purl.split('/')
-            currpg = int(pages[len(pages) - 2]) - 1
+        nextli = Paginator.find('a', string=re.compile(r'Next'))
+        if nextli and nextli.get('href'):
+            purl = nextli['href']
+            pages = [p for p in purl.split('/') if p]
+            try:
+                currpg = int(pages[-1]) - 1
+            except ValueError:
+                currpg = 1
             title = 'Next Page.. (Currently in Page {})'.format(currpg)
             movies.append((title, self.nicon, purl))
 
