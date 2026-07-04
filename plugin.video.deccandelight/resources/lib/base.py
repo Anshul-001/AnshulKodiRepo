@@ -115,6 +115,11 @@ class Scraper(object):
 
     @staticmethod
     def get_SearchQuery(sitename):
+        # During a global (all-sites) search the query is set once and reused
+        # here so individual scrapers do not each pop a keyboard.
+        if control.PRESET_QUERY is not None:
+            return control.PRESET_QUERY
+        search_text = ''
         keyboard = control.keyboard()
         keyboard.setHeading('Search ' + sitename)
         keyboard.doModal()

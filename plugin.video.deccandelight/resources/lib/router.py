@@ -90,6 +90,9 @@ def _dispatch(params):
         elif action == '12':
             import resolveurl
             resolveurl.display_settings()
+        elif action == '13':
+            from resources.lib.deccandelight import global_search
+            global_search()
     else:
         from resources.lib.deccandelight import list_sites
         list_sites()

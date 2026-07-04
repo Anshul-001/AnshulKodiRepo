@@ -1,3 +1,13 @@
+[B]Version 2.1.0 - 04 Jul 2026[/B]
+- New Features
+    - Global Search: a "* Search All Sites *" entry at the top of the
+      main menu searches every enabled site at once (in parallel) and
+      merges the results into one list, each tagged with its source site.
+    - Subtitle support: the playing item now carries title/year metadata
+      so Kodi's subtitle services (OpenSubtitles, Subscene) can fetch
+      external subtitles by name; embedded subtitles from the resolver
+      continue to load automatically.
+
 [B]Version 2.0.68 - 04 Jul 2026[/B]
 - New Indian Movie Hub icon and fanart artwork
 

@@ -33,6 +33,10 @@ sleep = xbmc.sleep
 
 
 mozhdr = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0'}
+
+# Holds the query during an all-sites (global) search so individual scrapers
+# reuse it instead of each prompting for input. None outside of global search.
+PRESET_QUERY = None
 ioshdr = {'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 11_0_1 like Mac OS X) AppleWebKit/604.1.38 (KHTML, like Gecko) Version/11.0 Mobile/15A402 Safari/604.1'}
 droidhdr = {'User-Agent': 'Dalvik/2.1.0 (Linux; U; Android 5.1.1; SM-G610F Build/LMY48Z)'}
 jiohdr = {'User-Agent': 'ExoPlayerDemo/5.2.0 (Linux;Android 6.0.1) ExoPlayerLib/2.3.0'}
@@ -77,6 +81,14 @@ def clean_string(string):
         return ''.join(e for e in string if e.isalnum())
     except:
         return string
+
+
+def keyboard_query(heading, default=''):
+    kb = keyboard(default, heading)
+    kb.doModal()
+    if kb.isConfirmed():
+        return kb.getText()
+    return ''
 
 
 def notify(msg, title=_addonname, duration=3000):

@@ -22,7 +22,7 @@ import time
 
 import six
 from resources.lib import cache, client, control
-from resources.lib.base import check_hosted_media
+from resources.lib.base import Scraper, check_hosted_media
 from resources.scrapers import *  # NoQA
 from six.moves import urllib_parse, urllib_request
 
@@ -91,6 +91,10 @@ sites = {
     '93hum': 'Hum TV : [COLOR yellow]Urdu Catchup TV[/COLOR]',
     '99gmala': 'Hindi Geetmala : [COLOR yellow]Hindi Songs[/COLOR]'
 }
+
+# site code (without the 2-digit sort prefix) -> friendly name, for labelling
+# results in the merged global-search list
+sitenames = {k[2:]: v.split(' : ')[0].split(':')[0].strip() for k, v in sites.items()}
 
 
 def make_listitem(*args, **kwargs):
@@ -161,6 +165,15 @@ def list_sites():
     Create the Sites menu in the Kodi interface.
     """
     listing = []
+
+    list_item = make_listitem(label='[COLOR lime][B]* Search All Sites *[/B][/COLOR]')
+    item_icon = control._ipath + 'ccache.png'
+    list_item.setArt({'thumb': item_icon,
+                      'icon': item_icon,
+                      'poster': item_icon,
+                      'fanart': control._fanart})
+    listing.append(('{0}?action=13'.format(control._url), list_item, True))
+
     for site, title in sorted(six.iteritems(sites)):
         if control.get_setting(site[2:]) == 'true':
             item_icon = control._ipath + '{}.png'.format(site[2:])
@@ -205,6 +218,76 @@ def list_sites():
 
     control.addDir(control._handle, listing, len(listing))
     control.setContent(control._handle, 'addons')
+    control.eod(control._handle)
+
+
+def _search_site(site, results):
+    """Run a single site's search using the preset query. Appends
+    (site, mode, movie_tuple) rows to the shared results list."""
+    try:
+        scraper = eval('{}.{}()'.format(site, site))
+        menu, mode, icon = scraper.get_menu()
+        surl = None
+        for title, iurl in six.iteritems(menu):
+            if 'Search' in title:
+                surl = iurl.split('MMMM')[0]
+                break
+        if not surl:
+            return
+        movies, imode = scraper.get_items(surl)
+        for movie in movies:
+            if 'Next Page' in movie[0]:
+                continue
+            results.append((site, imode, movie))
+    except Exception:
+        return
+
+
+def global_search():
+    """Search every enabled site at once and merge the results."""
+    query = control.keyboard_query('Search All Sites')
+    if not query:
+        return
+    control.PRESET_QUERY = query
+    enabled = [s[2:] for s in sorted(sites) if control.get_setting(s[2:]) == 'true']
+    results = []
+    try:
+        threads = []
+        for site in enabled:
+            t = Scraper.Thread(_search_site, site, results)
+            t.start()
+            threads.append(t)
+        for t in threads:
+            t.join()
+    finally:
+        control.PRESET_QUERY = None
+
+    listing = []
+    for site, imode, movie in results:
+        title = movie[0]
+        label = '{0} [COLOR grey]({1})[/COLOR]'.format(title if title else 'Unknown', sitenames.get(site, site))
+        list_item = make_listitem(label=label)
+        iurl = movie[2]
+        nextmode = imode
+        if 'MMMM' in iurl:
+            iurl, nextmode = iurl.split('MMMM')
+        thumb = movie[1] if movie[1] else control._ipath + '{}.png'.format(site)
+        url = '{0}?action={1}&site={2}&title={3}&thumb={4}&iurl={5}'.format(
+            control._url, nextmode, site, urllib_parse.quote(title if title else 'Unknown'),
+            urllib_parse.quote(thumb), urllib_parse.quote(iurl))
+        list_item.setArt({'thumb': thumb, 'icon': thumb,
+                          'poster': thumb, 'fanart': control._fanart})
+        if imode == 9:
+            is_folder = False
+            list_item.setProperty('IsPlayable', 'true')
+        else:
+            is_folder = True
+        listing.append((url, list_item, is_folder))
+
+    if not listing:
+        control.notify('No results found for "{0}"'.format(query))
+    control.addDir(control._handle, listing, len(listing))
+    control.setContent(control._handle, 'movies')
     control.eod(control._handle)
 
 
@@ -695,6 +778,19 @@ def play_video(vid_url, dl=False):
         vid_url, title = vid_url.split('ZZZZ')
 
     play_item = make_listitem(path=vid_url)
+
+    # Set title/year metadata so Kodi's subtitle services (OpenSubtitles,
+    # Subscene, ...) can search for external subtitles by name during playback.
+    if title and title != 'unknown':
+        try:
+            clean = re.sub(r'\[/?COLOR[^\]]*\]|\[/?B\]', '', title).strip()
+            info = {'title': clean, 'mediatype': 'movie'}
+            ym = re.search(r'(19|20)\d{2}', clean)
+            if ym:
+                info['year'] = int(ym.group(0))
+            update_listitem(play_item, info)
+        except Exception:
+            pass
 
     if any([x in vid_url for x in streamer_list]):
         if 'einthusan.' in vid_url:
