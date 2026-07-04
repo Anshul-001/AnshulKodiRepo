@@ -96,9 +96,10 @@ class moviehax(Scraper):
 
         plink = SoupStrainer('div', {'class': 'pagination'})
         Paginator = BeautifulSoup(html, "html.parser", parse_only=plink)
-        if 'nextpagination' in str(Paginator):
-            nextico = Paginator.find('i', {'id': 'nextpagination'})
-            purl = nextico.find_parent('a').get('href')
+        nextico = Paginator.find('i', {'id': 'nextpagination'})
+        nextanchor = nextico.find_parent('a') if nextico else None
+        if nextanchor and nextanchor.get('href'):
+            purl = nextanchor['href']
             pgspan = Paginator.find('span')
             pgtxt = pgspan.text.strip() if pgspan else ''
             title = 'Next Page.. (Currently in {0})'.format(pgtxt)

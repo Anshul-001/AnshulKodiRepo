@@ -31,7 +31,7 @@ _changelog = control._path + '/changelog.txt'
 cache_duration = float(control.get_setting('timeout'))
 
 msites = [
-    'tgun', 'tamilian', 'tyogi', 'torm', 'hlinks'
+    'tgun', 'tamilian', 'tyogi', 'torm', 'hlinks',
     'moviehax', 'ibomma', 'einthusan', 'mrulz', 'mghar',
     'b2t', 'wompk', 'gomovies', 'cinevez', 'todaypk',
     'flinks', 'dcine', 'hflinks'
@@ -785,7 +785,7 @@ def play_video(vid_url, dl=False):
         try:
             clean = re.sub(r'\[/?COLOR[^\]]*\]|\[/?B\]', '', title).strip()
             info = {'title': clean, 'mediatype': 'movie'}
-            ym = re.search(r'(19|20)\d{2}', clean)
+            ym = re.search(r'\b(19|20)\d{2}\b', clean)
             if ym:
                 info['year'] = int(ym.group(0))
             update_listitem(play_item, info)

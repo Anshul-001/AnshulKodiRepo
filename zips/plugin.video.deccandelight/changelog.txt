@@ -1,3 +1,11 @@
+[B]Version 2.1.3 - 04 Jul 2026[/B]
+- Fixes from code review:
+    - Fixed a long-standing typo (missing comma) that dropped Hindi Links 4U
+      and Movie Hax out of the metadata list, so they now get TMDB art/info
+    - Subtitle year detection no longer mis-reads resolutions like 1920x1080
+    - Movie Hax pagination now degrades gracefully instead of dropping a
+      whole page if the site's "next" markup changes
+
 [B]Version 2.1.2 - 04 Jul 2026[/B]
 - Scrapers Rewritten for relaunched sites (listings, pagination,
   search, and video-link extraction all re-adapted to new layouts):
