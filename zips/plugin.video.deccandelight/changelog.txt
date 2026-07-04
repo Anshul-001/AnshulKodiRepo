@@ -1,3 +1,10 @@
+[B]Version 2.0.64 - 04 Jul 2026[/B]
+- Base Code Changes
+    - Added direct "ResolveURL / Debrid Settings" shortcut - opens the
+      ResolveURL config (TorBox, RealDebrid, etc) from both the main
+      menu and addon Settings, so the hidden library module no longer
+      has to be hunted for in Kodi
+
 [B]Version 2.0.63 - 04 Jul 2026[/B]
 - Scrapers Fixed/Updated:
     - movierulz: site relaunched with new page layout - fixed listing

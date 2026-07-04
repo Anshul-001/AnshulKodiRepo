@@ -87,6 +87,9 @@ def _dispatch(params):
         elif action == '11':
             from resources.lib.tmdb import TMDB
             TMDB().clear_meta()
+        elif action == '12':
+            import resolveurl
+            resolveurl.display_settings()
     else:
         from resources.lib.deccandelight import list_sites
         list_sites()

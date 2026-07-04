@@ -193,6 +193,16 @@ def list_sites():
     is_folder = False
     listing.append((url, list_item, is_folder))
 
+    list_item = make_listitem(label='[COLOR yellow][B]ResolveURL / Debrid Settings[/B][/COLOR]')
+    item_icon = control._ipath + 'ccache.png'
+    list_item.setArt({'thumb': item_icon,
+                      'icon': item_icon,
+                      'poster': item_icon,
+                      'fanart': control._fanart})
+    url = '{0}?action=12'.format(control._url)
+    is_folder = False
+    listing.append((url, list_item, is_folder))
+
     control.addDir(control._handle, listing, len(listing))
     control.setContent(control._handle, 'addons')
     control.eod(control._handle)

@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <settings>
 	<category label="General">
+		<setting type="lsep" label="Playback / Resolver" />
+		<setting label="ResolveURL Settings (debrid: TorBox, RealDebrid...)" type="action" id="resolveurl_settings" action="RunPlugin(plugin://plugin.video.deccandelight/?action=12)"/>
 		<setting type="lsep" label="Cache Control" />
 		<setting label="Clear Cache" type="action" id="clear_cache" action="RunPlugin(plugin://plugin.video.deccandelight/?action=0)"/>
 		<setting label="Cache Timeout in hours" type="number" id="timeout" default="6"/> 
