@@ -1,3 +1,11 @@
+[B]Version 2.0.65 - 04 Jul 2026[/B]
+- Base Code Changes
+    - Removed the ResolveURL button from addon Settings: Kodi cannot
+      reliably open one addon's settings from inside another's settings
+      dialog (it rendered ResolveURL's login fields into the wrong page).
+      Use the "ResolveURL / Debrid Settings" item in the main menu instead,
+      which opens the resolver config cleanly.
+
 [B]Version 2.0.64 - 04 Jul 2026[/B]
 - Base Code Changes
     - Added direct "ResolveURL / Debrid Settings" shortcut - opens the
