@@ -7,7 +7,7 @@
 		<setting type="lsep" label="Download Location" />
 		<setting id="dlfolder" type="folder" label="Download Folder" default=""/>
 		<setting type="lsep" label="Meta Data" />
-		<setting id="meta" type="bool" label="Display Metadata for Movies" default="false"/>
+		<setting id="meta" type="bool" label="Display Metadata for Movies" default="true"/>
 		<setting label="Clear MetaCache" type="action" id="clear_mcache" visible="eq(-1,true)" enable="!eq(-1,)" action="RunPlugin(plugin://plugin.video.deccandelight/?action=11)"/>
 		<setting type="lsep" label="Cloudflare Solver" />
 		<setting id="fs_enable" visible="eq(3,false)" type="bool" label="Enable Flaresolverr" default="false" />

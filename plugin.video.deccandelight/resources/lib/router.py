@@ -41,6 +41,20 @@ def routing(paramstring):
 
     params = dict(urllib_parse.parse_qsl(paramstring.replace('?', '')))
     # logger(f'routing params>>>> {params}')
+    try:
+        _dispatch(params)
+    except Exception:
+        import traceback
+        from resources.lib import control
+        control.log(traceback.format_exc(), 'info')
+        site = params.get('site', '')
+        msg = 'Site unreachable or page layout changed'
+        if site:
+            msg = '{0}: {1}'.format(site, msg)
+        control.notify(msg)
+
+
+def _dispatch(params):
     if params:
         action = params.get('action', '')
         if action == '0':

@@ -16,8 +16,15 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-from sys import argv
+import sys
 
-from resources.lib.router import routing
+from resources.lib import control
 
-routing(argv[2])
+# reuselanguageinvoker keeps this interpreter alive between invocations,
+# so argv-derived module state must be refreshed on every call
+control._url = sys.argv[0]
+control._handle = int(sys.argv[1])
+
+from resources.lib.router import routing  # NoQA
+
+routing(sys.argv[2])

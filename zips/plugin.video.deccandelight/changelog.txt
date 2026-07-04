@@ -1,3 +1,14 @@
+[B]Version 2.0.62 - 04 Jul 2026[/B]
+- Base Code Changes
+    - Faster navigation: reuse Python interpreter between clicks
+      (reuselanguageinvoker), with per-call handle refresh
+    - Friendly notification instead of silent failure or script error
+      when a site is unreachable or its layout changed
+    - Movie metadata (TMDB posters/plots/ratings) enabled by default
+    - Mirror fallback generalized: any scraper can declare a mirror
+      list and auto-use the first working domain
+    - Declared xbmc.python 3.0.0 dependency
+
 [B]Version 2.0.61 - 04 Jul 2026[/B]
 - Scrapers Fixed/Updated:
     - movierulz: automatic mirror fallback - probes known domains

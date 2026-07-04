@@ -18,7 +18,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 import json
 import re
 from bs4 import BeautifulSoup, SoupStrainer
-from resources.lib import cache, client, control
+from resources.lib import client
 from resources.lib.base import Scraper
 from six.moves import urllib_parse
 
@@ -30,18 +30,10 @@ MIRRORS = [
 ]
 
 
-def working_mirror():
-    for base in MIRRORS:
-        html = client.request(base + 'category/telugu-movie/', headers=control.mozhdr, timeout='10')
-        if html and 'boxed film' in html:
-            return base
-    return None
-
-
 class mrulz(Scraper):
     def __init__(self):
         Scraper.__init__(self)
-        base = cache.get(working_mirror, 8) or MIRRORS[0]
+        base = self.first_working_mirror(MIRRORS, 'category/telugu-movie/', 'boxed film')
         self.bu = base + 'category/'
         self.icon = self.ipath + 'mrulz.png'
         self.list = {'01Tamil Movies': self.bu + 'tamil-movie/',

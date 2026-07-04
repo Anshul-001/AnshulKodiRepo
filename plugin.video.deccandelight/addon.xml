@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<addon id="plugin.video.deccandelight" version="2.0.61" name="Deccan Delight" provider-name="gujal">
+<addon id="plugin.video.deccandelight" version="2.0.62" name="Deccan Delight" provider-name="gujal">
 <requires>
+	<import addon="xbmc.python" version="3.0.0" />
 	<import addon="script.module.six" />
 	<import addon="script.module.kodi-six" />
 	<import addon="script.module.beautifulsoup4" version="4.0.0"/>
@@ -25,6 +26,6 @@
 		<screenshot>resources/images/screenshot-02.jpg</screenshot>
 		<screenshot>resources/images/screenshot-03.jpg</screenshot>
 	</assets>
-	<reuselanguageinvoker>false</reuselanguageinvoker>
+	<reuselanguageinvoker>true</reuselanguageinvoker>
 </extension>
 </addon>

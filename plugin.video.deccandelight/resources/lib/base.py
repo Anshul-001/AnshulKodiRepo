@@ -41,6 +41,14 @@ def check_hosted_media(vid_url, subs=False):
     return HostedMediaFile(url=vid_url, subs=subs)
 
 
+def probe_mirrors(mirrors, probe_path, marker):
+    for base in mirrors:
+        html = client.request(base + probe_path, headers=control.mozhdr, timeout='10')
+        if html and marker in html:
+            return base
+    return None
+
+
 class Scraper(object):
 
     def __init__(self):
@@ -58,6 +66,13 @@ class Scraper(object):
         self.nicon = self.ipath + 'next.png'
         self.hmf = check_hosted_media
         self.log = control.log
+
+    def first_working_mirror(self, mirrors, probe_path='', marker='</'):
+        """Return the first mirror serving expected content, cached for 8 hours.
+        Falls back to the last known-good mirror (stale cache), then mirrors[0]."""
+        from resources.lib import cache
+        base = cache.get(probe_mirrors, 8, mirrors, probe_path, marker)
+        return base or mirrors[0]
 
     class Thread(threading.Thread):
         def __init__(self, target, *args):
