@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <addons>
-<addon id="plugin.video.deccandelight" version="2.0.67" name="Indian Movie Hub" provider-name="gujal">
+<addon id="plugin.video.deccandelight" version="2.0.68" name="Indian Movie Hub" provider-name="gujal">
 <requires>
 	<import addon="xbmc.python" version="3.0.0" />
 	<import addon="script.module.six" />
@@ -30,7 +30,7 @@
 	<reuselanguageinvoker>false</reuselanguageinvoker>
 </extension>
 </addon>
-<addon id="repository.anshul" name="Anshul Kodi Repo" version="1.0.0" provider-name="anshul">
+<addon id="repository.anshul" name="Anshul Kodi Repo" version="1.0.1" provider-name="anshul">
 	<extension point="xbmc.addon.repository" name="Anshul Kodi Repo">
 		<dir>
 			<info compressed="false">https://raw.githubusercontent.com/Anshul-001/AnshulKodiRepo/master/addons.xml</info>
@@ -49,6 +49,7 @@
 		<platform>all</platform>
 		<assets>
 			<icon>icon.png</icon>
+			<fanart>fanart.jpg</fanart>
 		</assets>
 	</extension>
 </addon>

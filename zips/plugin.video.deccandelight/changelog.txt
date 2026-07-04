@@ -1,3 +1,6 @@
+[B]Version 2.0.68 - 04 Jul 2026[/B]
+- New Indian Movie Hub icon and fanart artwork
+
 [B]Version 2.0.67 - 04 Jul 2026[/B]
 - Rebranded to "Indian Movie Hub" (display name, dialogs, changelog
   header). Internal addon id unchanged so existing installs update

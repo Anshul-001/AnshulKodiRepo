@@ -1,2 +1,5 @@
+[B]Version 1.0.1 - 04 Jul 2026[/B]
+- New Anshul Kodi Repo icon and fanart artwork
+
 [B]Version 1.0.0 - 04 Jul 2026[/B]
 - Initial release of Anshul Kodi Repo
