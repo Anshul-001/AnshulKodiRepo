@@ -1,3 +1,16 @@
+[B]Version 2.1.2 - 04 Jul 2026[/B]
+- Scrapers Rewritten for relaunched sites (listings, pagination,
+  search, and video-link extraction all re-adapted to new layouts):
+    - tamilyogi (new WordPress theme) - movies verified working
+    - moviehax (fixed dead category slugs + new search/pagination)
+    - gomovies (base path /genre/ -> /category/, new markup)
+    - hindilinks4u pro (rebuilt category list, new base path)
+    - playdesi (new ToroPlay theme, shows/episodes/movies)
+    - yodesi (rebuilt from site WP API, serials/episodes)
+- Known caveats:
+    - tamilyogi web-series episode pages are JS-rendered; movies work
+    - yodesi playback depends on ResolveURL supporting the embed host
+
 [B]Version 2.1.1 - 04 Jul 2026[/B]
 - Scrapers Updated (domains):
     - tamilyogi: 1tamilyogi.kaufen -> tamilyogi.legal

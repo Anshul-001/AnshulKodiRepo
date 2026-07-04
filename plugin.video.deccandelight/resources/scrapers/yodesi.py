@@ -15,6 +15,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
 '''
+import json
 import re
 
 from bs4 import BeautifulSoup, SoupStrainer
@@ -29,114 +30,131 @@ class yodesi(Scraper):
         self.bu = 'https://yodesionline.com/'
         self.icon = self.ipath + 'yodesi.png'
         self.videos = []
-        self.list = {'01Star Plus': self.bu + 'star-plus/',
-                     '02Colors': self.bu + 'colors/',
-                     '03Zee TV': self.bu + 'zee-tv/',
-                     '04Sony TV': self.bu + 'sony-tv/',
-                     '05SAB TV': self.bu + 'sab-tv/',
-                     '07Star Bharat': self.bu + 'star-bharat/',
-                     '08& TV': self.bu + 'tv-and-tv/',
-                     '09Star Jalsha': self.bu + 'star-jalsha/',
-                     '10Star Pravah': self.bu + 'star-pravah/',
-                     '11Star Vijay': self.bu + 'star-vijay/',
-                     '12MTV': self.bu + 'mtv-india/',
-                     '14Colors Marathi': self.bu + 'colors-marathi/',
-                     '15Colors Bangla': self.bu + 'colors-bangla/',
-                     '16Zee Yuva': self.bu + 'zee-yuva/',
-                     '17Zee Marathi': self.bu + 'zee-marathi/',
-                     '18Zee Bangla': self.bu + 'zee-bangla/',
-                     '31Amazon': self.bu + 'amazon/',
-                     '32Eros Now Web Series': self.bu + 'eros-now-web-series/',
-                     '33Voot': self.bu + 'voot/',
-                     '34ALTBalaji': self.bu + 'alt-balaji/',
-                     '35Zee5': self.bu + 'zee5/',
-                     '36Netflix': self.bu + 'netflix/',
-                     '37Hotstar': self.bu + 'hotstar/',
-                     '38MX Web Series': self.bu + 'mx-web-series/',
-                     '39Vikram Bhatt Web Series': self.bu + 'vikram-bhatt-web-series/',
-                     '99[COLOR yellow]** Search **[/COLOR]': self.bu + '?s=MMMM7'}
+        # The relaunched site is organised as one WordPress category per serial
+        # (no channel grouping). get_menu fetches the live list; this static set
+        # of popular serials is the fallback if that request fails.
+        self.list = {'01Yeh Rishta Kya Kehlata Hai': self.bu + 'category/yeh-rishta-kya-kehlata-hai-serial/',
+                     '02Kyunki Saas Bhi Kabhi Bahu Thi 2': self.bu + 'category/kyunki-saas-bhi-kabhi-bahu-thi-2/',
+                     '03Anupama': self.bu + 'category/anupama-serial/',
+                     '04Kyunki Rishton Ke Bhi Roop Badalte Hai': self.bu + 'category/kyunki-rishton-ke-bhi-roop-badalte-hai/',
+                     '05Mannat': self.bu + 'category/mannat/',
+                     '06Mr and Mrs Parshuram': self.bu + 'category/mr-and-mrs-parshuram/',
+                     '07Seher Hone Ko Hai': self.bu + 'category/seher-hone-ko-hai/',
+                     '08O Humnava Tum Dena Saath Mera': self.bu + 'category/o-humnava-tum-dena-saath-mera/',
+                     '09Tu Juliet Jatt Di': self.bu + 'category/tu-juliet-jatt-di/',
+                     '10Udne Ki Aasha': self.bu + 'category/udne-ki-aasha/',
+                     '11Pushpa Impossible': self.bu + 'category/pushpa-impossible/',
+                     '12Taarak Mehta Ka Ooltah Chashmah': self.bu + 'category/taarak-mehta-ka-ooltah-chashmah/',
+                     '13Jhanak': self.bu + 'category/jhanak/',
+                     '14Mangal Lakshmi': self.bu + 'category/mangal-lakshmi/',
+                     '15Naagin 7': self.bu + 'category/naagin-7/'}
 
     def get_menu(self):
-        return (self.list, 5, self.icon)
+        mlist = self._categories()
+        mlist.update({'99[COLOR yellow]** Search **[/COLOR]': self.bu + '?s=MMMM7'})
+        return (mlist, 7, self.icon)
+
+    def _categories(self):
+        """
+        Build the {NN Serial Name: category url} dict from the live WordPress
+        REST endpoint, falling back to the static list on any failure.
+        """
+        try:
+            data = client.request(self.bu + 'wp-json/wp/v2/categories?per_page=100')
+            cats = json.loads(data)
+            cats = [c for c in cats if c.get('link') and c.get('count', 0) > 0
+                    and self.unescape(c.get('name', '')).lower() != 'uncategorized']
+            cats.sort(key=lambda c: -c.get('count', 0))
+            if not cats:
+                raise ValueError('no categories')
+            mlist = {}
+            for ino, cat in enumerate(cats, 1):
+                mlist['{0:02d}{1}'.format(ino, self.unescape(cat['name']))] = cat['link']
+            return mlist
+        except Exception:
+            return dict(self.list)
 
     def get_second(self, iurl):
         """
-        Get the list of shows.
-        :return: list
+        List the available serials (kept for API compatibility; the live menu
+        goes straight to the episode listing).
         """
         shows = []
-        html = client.request(iurl)
-        mlink = SoupStrainer('div', {'id': 'content_box'})
-        mdiv = BeautifulSoup(html, "html.parser", parse_only=mlink)
-        items = mdiv.find_all('div', {'class': re.compile('^one_')})
-        for item in items:
-            title = self.unescape(item.find('p').text)
-            url = item.find('a')['href']
-            try:
-                icon = item.find('img')['src']
-            except:
-                icon = self.icon
-
-            shows.append((title, icon, url))
-
+        for title, url in sorted(self._categories().items()):
+            title = re.sub(r'^\d+', '', title)
+            shows.append((title, self.icon, url))
         return (shows, 7)
 
     def get_items(self, url):
         movies = []
         if url[-3:] == '?s=':
-            search_text = self.get_SearchQuery('Yo Desi!')
+            search_text = self.get_SearchQuery('YoDesi')
             search_text = urllib_parse.quote_plus(search_text)
             url = url + search_text
         html = client.request(url)
-        mlink = SoupStrainer('div', {'class': 'main-container'})
+        mlink = SoupStrainer('article', {'class': re.compile('item-list')})
         mdiv = BeautifulSoup(html, "html.parser", parse_only=mlink)
-        plink = SoupStrainer('nav', {'class': re.compile('pagination$')})
-        Paginator = BeautifulSoup(html, "html.parser", parse_only=plink)
-        items = mdiv.find_all('div', {'class': 'latestPost-content'})
+        items = mdiv.find_all('article')
 
         for item in items:
-            title = self.unescape(item.h2.text)
+            head = item.find('h2', {'class': 'post-box-title'}) or item
+            link = head.find('a')
+            if not link:
+                continue
+            title = self.unescape(link.get_text(strip=True))
             title = self.clean_title(title)
-            url = item.find('a')['href']
+            url = link.get('href')
+            img = item.find('img')
             try:
-                thumb = item.find('img')['src']
-            except:
+                thumb = img.get('data-src') or img.get('src')
+            except AttributeError:
                 thumb = self.icon
-            movies.append((title, thumb, url))
+            movies.append((title, thumb or self.icon, url))
 
-        if 'next' in str(Paginator):
-            nextli = Paginator.find('a', {'class': 'next'})
-            purl = nextli.get('href')
-            currpg = Paginator.find('span', {'class': re.compile('current')}).text
-            pages = Paginator.find_all('a', {'class': 'page-numbers'})
-            lastpg = pages[-2].text
+        plink = SoupStrainer('div', {'class': 'pagination'})
+        Paginator = BeautifulSoup(html, "html.parser", parse_only=plink)
+        nextpg = Paginator.find('span', {'id': 'tie-next-page'})
+        if nextpg and nextpg.find('a'):
+            purl = nextpg.find('a').get('href')
+            curr = Paginator.find('span', {'class': 'current'})
+            currpg = curr.get_text(strip=True) if curr else '?'
+            pages = Paginator.find('span', {'class': 'pages'})
+            lastpg = re.search(r'of\s*([\d,]+)', pages.get_text()) if pages else None
+            lastpg = lastpg.group(1) if lastpg else '?'
             title = 'Next Page.. (Currently in Page {0} of {1})'.format(currpg, lastpg)
             movies.append((title, self.nicon, purl))
 
         return (movies, 8)
 
     def get_videos(self, url):
-        def process_item(item):
-            vidurl = item.get('href')
-            vidtxt = self.unescape(item.text)
-            vidtxt = re.search(r'(\d.*)', vidtxt)
-            vidtxt = vidtxt.group(1) if vidtxt else ''
+        self.videos = []
+        html = client.request(url)
+        mlink = SoupStrainer('div', {'class': re.compile('single-post-video')})
+        videoclass = BeautifulSoup(html, "html.parser", parse_only=mlink)
+        links = videoclass.find_all('iframe')
+        if not links:
+            mlink = SoupStrainer('article', {'id': 'the-post'})
+            videoclass = BeautifulSoup(html, "html.parser", parse_only=mlink)
+            links = videoclass.find_all('iframe')
+
+        multi = len(links) > 1
+        for idx, link in enumerate(links, 1):
+            vidurl = link.get('src') or link.get('data-litespeed-src') or link.get('data-src')
+            if not vidurl:
+                continue
+            if vidurl.startswith('//'):
+                vidurl = 'https:' + vidurl
+            vidtxt = 'Part {0}'.format(idx) if multi else ''
             self.resolve_media(vidurl, self.videos, vidtxt)
 
-        html = client.request(url)
-        mlink = SoupStrainer('div', {'class': re.compile('entry-content')})
-        videoclass = BeautifulSoup(html, "html.parser", parse_only=mlink)
-
-        links = videoclass.find_all('iframe')
-        for link in links:
-            vidurl = link.get('src')
-            self.resolve_media(vidurl, self.videos)
-
         links = videoclass.find_all('a', {'target': '_blank'})
-        threads = []
         for link in links:
-            threads.append(self.Thread(process_item, link))
-        [i.start() for i in threads]
-        [i.join() for i in threads]
+            vidurl = link.get('href')
+            if not vidurl:
+                continue
+            vidtxt = self.unescape(link.text)
+            vidtxt = re.search(r'(Part\s*\d+)', vidtxt, re.IGNORECASE)
+            vidtxt = vidtxt.group(1) if vidtxt else ''
+            self.resolve_media(vidurl, self.videos, vidtxt)
 
         return sorted(self.videos)

@@ -25,50 +25,35 @@ from six.moves import urllib_parse
 class hflinks(Scraper):
     def __init__(self):
         Scraper.__init__(self)
-        self.bu = 'https://hindilinks4u.foundation/genre/'
+        self.bu = 'https://hindilinks4u.foundation/'
         self.icon = self.ipath + 'hflinks.png'
 
-        self.list = {'01Dual Audio': 'dual audio',
-                     '02Hindi': 'bollywood',
-                     '03Hindi Web Series': 'hindi series',
-                     '04English': 'hollywood',
-                     '05English Series': self.bu[:-6] + 'series/MMMM7',
-                     '06Extra Movies': 'extramovies',
-                     '97[COLOR cyan]Adult Erotic Movies[/COLOR]': self.bu + 'erotic-movies/MMMM7',
-                     '98[COLOR cyan]Adult Hot[/COLOR]': 'hot series',
-                     '99[COLOR yellow]** Search **[/COLOR]': self.bu[:-6] + '?s='}
+        self.list = {'01Dual Audio': self.bu + 'genre/dual-audio/',
+                     '02Bollywood': self.bu + 'genre/bollywood/',
+                     '03New Movies': self.bu + 'release-year/2026/',
+                     '04Trending': self.bu + 'genre/top-rated/',
+                     '05Hindi Web Series': self.bu + 'genre/web-series/',
+                     '06Hollywood': self.bu + 'genre/hollywood/',
+                     '07Hollywood Dubbed': self.bu + 'genre/hollywood-dubbed/',
+                     '08South Dubbed': self.bu + 'genre/south-special/',
+                     '09English Series': self.bu + 'series/',
+                     '10Action': self.bu + 'genre/action/',
+                     '11Adventure': self.bu + 'genre/adventure/',
+                     '12Comedy': self.bu + 'genre/comedy/',
+                     '13Crime': self.bu + 'genre/crime/',
+                     '14Drama': self.bu + 'genre/drama/',
+                     '15Horror': self.bu + 'genre/horror/',
+                     '16Thriller': self.bu + 'genre/thriller/',
+                     '97[COLOR cyan]Adult Erotic Movies[/COLOR]': self.bu + 'genre/erotic-movies/',
+                     '99[COLOR yellow]** Search **[/COLOR]': self.bu + '?s='}
 
     def get_menu(self):
-        return (self.list, 5, self.icon)
-
-    def get_second(self, iurl):
-        """
-        Get the list of categories.
-        """
-        cats = []
-        page = client.request(self.bu[:-6])
-        mlink = SoupStrainer('div', {'id': 'menu'})
-        mdiv = BeautifulSoup(page, "html.parser", parse_only=mlink)
-        submenus = mdiv.find_all('li', {'class': re.compile('^menu-item')})
-        for submenu in submenus:
-            if iurl == submenu.a.text.lower():
-                title = submenu.a.text
-                url = submenu.a['href']
-                cats.append((title, self.icon, url))
-                break
-        items = submenu.find_all('li')
-        for item in items:
-            title = item.text
-            url = item.find('a')['href']
-            url = url if url.startswith('http') else self.bu[:-6] + url
-            cats.append((title, self.icon, url))
-
-        return (cats, 7)
+        return (self.list, 7, self.icon)
 
     def get_items(self, url):
         movies = []
         if url[-3:] == '?s=':
-            search_text = self.get_SearchQuery('Hindi Links 4U')
+            search_text = self.get_SearchQuery('FilmLinks4U')
             search_text = urllib_parse.quote_plus(search_text)
             url = url + search_text
 
@@ -94,7 +79,7 @@ class hflinks(Scraper):
 
         r = re.search('class="active".+?href="([^"]+)', str(Paginator))
         if r:
-            currpg = Paginator.find('li', {'class': 'active'}).text
+            currpg = Paginator.find('li', {'class': 'active'}).text.strip()
             lastpg = Paginator.find_all('li')[-1].find('a')['href'].split('/')[-2]
             title = 'Next Page.. (Currently in Page {} of {})'.format(currpg, lastpg)
             movies.append((title, self.nicon, r.group(1)))
@@ -115,7 +100,7 @@ class hflinks(Scraper):
             for vtab in vtabs:
                 videourl = vtab.get('href')
                 if 'speedostream' in videourl or 'embdproxy' in videourl:
-                    videourl = '{0}|Referer={1}'.format(videourl, self.bu[:-6])
+                    videourl = '{0}|Referer={1}'.format(videourl, self.bu)
                 self.resolve_media(videourl, videos)
         except:
             pass
@@ -126,7 +111,7 @@ class hflinks(Scraper):
                 if vtab.find('iframe') is not None:
                     videourl = vtab.find('iframe')['src']
                     if 'speedostream' in videourl or 'embdproxy' in videourl:
-                        videourl = '{0}|Referer={1}'.format(videourl, self.bu[:-6])
+                        videourl = '{0}|Referer={1}'.format(videourl, self.bu)
                     self.resolve_media(videourl, videos)
         except:
             pass

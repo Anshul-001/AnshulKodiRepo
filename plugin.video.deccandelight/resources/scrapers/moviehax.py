@@ -31,10 +31,10 @@ class moviehax(Scraper):
         self.icon = self.ipath + 'moviehax.png'
         self.list = {'01Hindi': self.bu + 'bollywood-movies/',
                      '02Netflix': self.bu + 'netflix/',
-                     '03South Hindi Dubbed Movies': self.bu + 'latest-south-hindi-dubbed-movies/',
+                     '03South Hindi Dubbed Movies': self.bu + 'watch-south-hindi-dubbed-movie/',
                      '04Hindi Dubbed Movies': self.bu + 'hindi-dubbed-movies/',
                      '05English': self.bu + 'hollywood/',
-                     '07Punjabi': self.bu + 'new-punjabi-movie/',
+                     '07Punjabi': self.bu + 'watch-punjabi-movies/',
                      '08Urdu': self.bu + 'pakistani-movies/',
                      '94[COLOR cyan]Adult Alt Balaji[/COLOR]': self.bu + 'altbalaji/',
                      '95[COLOR cyan]Adult Ullu[/COLOR]': self.bu + 'ullu/',
@@ -48,34 +48,59 @@ class moviehax(Scraper):
 
     def get_items(self, iurl):
         movies = []
+        is_search = '?s=' in iurl
         if iurl[-3:] == '?s=':
-            search_text = self.get_SearchQuery('Moviehax')
+            search_text = self.get_SearchQuery('MovieHax')
             search_text = urllib_parse.quote_plus(search_text)
             iurl += search_text
 
         html = client.request(iurl)
-        mlink = SoupStrainer('div', {'class': 'items normal'})
-        mdiv = BeautifulSoup(html, "html.parser", parse_only=mlink)
+
+        if is_search:
+            mlink = SoupStrainer('div', {'class': 'search-page'})
+            mdiv = BeautifulSoup(html, "html.parser", parse_only=mlink)
+            items = mdiv.find_all('div', {'class': 'result-item'})
+            for item in items:
+                tdiv = item.find('div', {'class': 'title'})
+                if not tdiv:
+                    continue
+                link = tdiv.find('a')
+                title = link.text.strip()
+                year = item.find('span', {'class': 'year'})
+                if year and year.text.strip() and year.text.strip() not in title:
+                    title += ' ({0})'.format(year.text.strip())
+                url = link['href']
+                try:
+                    thumb = item.find('img')['src']
+                except:
+                    thumb = self.icon
+
+                movies.append((title, thumb, url))
+        else:
+            mlink = SoupStrainer('div', {'class': 'items normal'})
+            mdiv = BeautifulSoup(html, "html.parser", parse_only=mlink)
+            items = mdiv.find_all('article', {'id': re.compile('^post')})
+            for item in items:
+                title = item.find('h3').text.strip()
+                qual = item.find('span', {'class': 'quality'})
+                if qual:
+                    if qual.text not in title:
+                        title += ' ({0})'.format(qual.text)
+                url = item.find('a')['href']
+                try:
+                    thumb = item.find('img')['src']
+                except:
+                    thumb = self.icon
+
+                movies.append((title, thumb, url))
+
         plink = SoupStrainer('div', {'class': 'pagination'})
         Paginator = BeautifulSoup(html, "html.parser", parse_only=plink)
-        items = mdiv.find_all('article', {'id': re.compile('^post')})
-        for item in items:
-            title = item.find('h3').text
-            qual = item.find('span', {'class': 'quality'})
-            if qual:
-                if qual.text not in title:
-                    title += ' ({0})'.format(qual.text)
-            url = item.find('a')['href']
-            try:
-                thumb = item.find('img')['src']
-            except:
-                thumb = self.icon
-
-            movies.append((title, thumb, url))
-
-        if 'next' in str(Paginator):
-            purl = Paginator.find_all('a')[-1].get('href')
-            pgtxt = Paginator.find('span').text
+        if 'nextpagination' in str(Paginator):
+            nextico = Paginator.find('i', {'id': 'nextpagination'})
+            purl = nextico.find_parent('a').get('href')
+            pgspan = Paginator.find('span')
+            pgtxt = pgspan.text.strip() if pgspan else ''
             title = 'Next Page.. (Currently in {0})'.format(pgtxt)
             movies.append((title, self.nicon, purl))
 

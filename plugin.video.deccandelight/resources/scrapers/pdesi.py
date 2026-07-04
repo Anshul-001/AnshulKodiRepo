@@ -16,6 +16,7 @@ You should have received a copy of the GNU General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
 '''
 
+import base64
 import re
 
 from bs4 import BeautifulSoup, SoupStrainer
@@ -32,139 +33,129 @@ class pdesi(Scraper):
         self.videos = []
 
     def get_menu(self):
-        html = client.request(self.bu + 'playdesi/', verify=False)
-        mlink = SoupStrainer('div', {'id': 'main-menu'})
+        html = client.request(self.bu, verify=False)
+        mlink = SoupStrainer('nav', {'class': 'Menu'})
         mdiv = BeautifulSoup(html, "html.parser", parse_only=mlink)
-        items = mdiv.find_all('li', {'class': 'menu-item-object-page'})
+        items = mdiv.find_all('li', {'class': 'menu-item'})
         mlist = {}
         ino = 1
+        seen = []
         for item in items:
-            mlist.update({'{0:02d}{1}'.format(ino, item.text): item.find('a').get('href')})
+            a = item.find('a', href=True)
+            if not a:
+                continue
+            href = a['href']
+            label = a.get_text(strip=True)
+            if not label or href in seen or href.rstrip('/') == self.bu.rstrip('/'):
+                continue
+            seen.append(href)
+            mlist.update({'{0:02d}{1}'.format(ino, label): href})
             ino += 1
-        mlist.update({'99[COLOR yellow]** Search **[/COLOR]': '{0}?s=MMMM7'.format(self.bu)})
-        return (mlist, 5, self.icon)
-
-    def get_second(self, iurl):
-        """
-        Get the list of shows.
-        :return: list
-        """
-        shows = []
-        html = client.request(iurl)
-        mlink = SoupStrainer('section', {'id': 'innerTop'})
-        mdiv = BeautifulSoup(html, "html.parser", parse_only=mlink)
-        r = mdiv.find('h4', {'class': 'heading-tag'})
-        if r:
-            items = r.text.split('|')
-            mode = 6
-            for item in items:
-                shows.append((item, self.icon, '{0}ZZZZ{1}'.format(iurl, items.index(item))))
-        else:
-            items = mdiv.find_all('div', {'class': 'vc_column_container col-md-3'})
-            mode = 7
-            for item in items:
-                title = '{0} [COLOR cyan][I]{1}[/I][/COLOR]'.format(item.h4.text, item.p.text)
-                thumb = item.find('img').get('src')
-                url = item.find('a').get('href')
-                shows.append((title, thumb, url))
-
-        if not shows:
-            mlink = SoupStrainer('div', {'id': 'content'})
-            mdiv = BeautifulSoup(html, "html.parser", parse_only=mlink)
-            items = mdiv.find_all('article', {'class': 'post'})
-            mode = 7
-            for item in items:
-                title = item.find('h3').text
-                thumb = item.find('img').get('src')
-                url = item.find('a').get('href')
-                shows.append((title, thumb, url))
-
-        return (shows, mode)
-
-    def get_third(self, iurl):
-        """
-        Get the list of shows.
-        :return: list
-        """
-        iurl, sect = iurl.split('ZZZZ')
-        shows = []
-        html = client.request(iurl)
-        mlink = SoupStrainer('section', {'id': 'innerTop'})
-        mdiv = BeautifulSoup(html, "html.parser", parse_only=mlink)
-        sdiv = mdiv.contents[int(sect)]
-        items = sdiv.find_all('div', {'class': 'vc_column_container col-md-3'})
-        mode = sdiv.find('h4', {'class': 'heading-tag'}).text
-        if '|' in mode:
-            mode = mode.split('|')[0]
-        mode = 8 if 'Original' in mode else 7
-        for item in items:
-            title = '{0} [COLOR cyan][I]{1}[/I][/COLOR]'.format(item.h4.text, item.p.text)
-            thumb = item.find('img').get('src')
-            url = item.find('a').get('href')
-            shows.append((title, thumb, url))
-        return (shows, mode)
+        mlist.update({'99[COLOR yellow]** Search **[/COLOR]': '{0}?s='.format(self.bu)})
+        return (mlist, 7, self.icon)
 
     def get_items(self, url):
+        """
+        List the shows/movies (article listing) for a category or search.
+        Series articles are routed to the episode lister (mode 6), movie
+        articles straight to the video lister (mode 8), via a per-item
+        MMMM tag so mixed search results route correctly.
+        """
         episodes = []
         if url[-3:] == '?s=':
-            search_text = self.get_SearchQuery('Play Desi')
+            search_text = self.get_SearchQuery('PlayDesi')
             search_text = urllib_parse.quote_plus(search_text)
             url = url + search_text
 
         html = client.request(url)
         mlink = SoupStrainer('article')
-        plink = SoupStrainer('div', {'class': 'pagination'})
         items = BeautifulSoup(html, "html.parser", parse_only=mlink)
-        Paginator = BeautifulSoup(html, "html.parser", parse_only=plink)
 
-        for item in items:
-            title = self.unescape(item.h2.text)
+        for item in items.find_all('article'):
+            a = item.find('a', href=True)
+            head = item.find(['h2', 'h3'])
+            if not a or not head:
+                continue
+            title = self.unescape(head.get_text(strip=True))
             title = title.encode('utf8') if self.PY2 else title
-            url = item.find('a')['href']
-            if item.find('img'):
-                thumb = item.find('img')['src']
-            else:
-                thumb = self.icon
-            if 'data:image' in thumb:
-                if 'data-srcset' in item.find('img'):
-                    thumb = item.find('img')['data-srcset'].split(' ')[0]
-                else:
-                    thumb = item.find('img')['data-src']
+            iurl = a['href']
+            img = item.find('img')
+            thumb = self.icon
+            if img:
+                thumb = img.get('data-src') or img.get('src') or self.icon
+                if 'data:image' in thumb:
+                    thumb = img.get('data-src') or img.get('data-lazy-src') or self.icon
             if thumb.startswith('http'):
                 thumb = '{0}|Referer={1}'.format(thumb, self.bu)
-            episodes.append((title, thumb, url))
+            nextmode = 6 if '/series/' in iurl else 8
+            episodes.append((title, thumb, '{0}MMMM{1}'.format(iurl, nextmode)))
 
-        if 'next' in Paginator.text.lower():
-            purl = Paginator.find('a', {'class': 'next'}).get('href')
-            currpg = Paginator.find('span', {'class': 'current'}).text
-            lastpg = Paginator.find_all('a', {'class': 'page-numbers'})[-2].text
-            title = 'Next Page.. (Currently in Page {} of {})'.format(currpg, lastpg)
+        plink = SoupStrainer('nav', {'class': re.compile('pagination')})
+        Paginator = BeautifulSoup(html, "html.parser", parse_only=plink)
+        nxt = Paginator.find('a', {'class': re.compile(r'\bnext\b')})
+        if nxt and nxt.get('href'):
+            purl = nxt['href']
+            currpg = Paginator.find('span', {'class': re.compile('current')})
+            currpg = currpg.text.strip() if currpg else '?'
+            pages = Paginator.find_all('a', {'class': 'page-numbers'})
+            try:
+                lastpg = pages[-2].text.strip()
+            except IndexError:
+                lastpg = '?'
+            title = 'Next Page.. (Currently in Page {0} of {1})'.format(currpg, lastpg)
             episodes.append((title, self.nicon, purl))
 
         return (episodes, 8)
 
+    def get_third(self, iurl):
+        """
+        List the episodes of a series. Each episode routes to get_videos.
+        """
+        shows = []
+        html = client.request(iurl)
+        pdiv = BeautifulSoup(html, "html.parser", parse_only=SoupStrainer('div', {'class': 'Image'}))
+        pimg = pdiv.find('img')
+        thumb = self.icon
+        if pimg:
+            thumb = pimg.get('data-src') or pimg.get('src') or self.icon
+            if 'data:image' in thumb:
+                thumb = pimg.get('data-src') or self.icon
+        mlink = SoupStrainer('div', {'class': re.compile('TPTblCn')})
+        mdiv = BeautifulSoup(html, "html.parser", parse_only=mlink)
+        for td in mdiv.find_all('td', {'class': 'MvTbTtl'}):
+            a = td.find('a', href=True)
+            if not a:
+                continue
+            title = self.unescape(a.get_text(strip=True))
+            title = title.encode('utf8') if self.PY2 else title
+            shows.append((title, thumb, a['href']))
+        return (shows, 8)
+
     def get_videos(self, url):
+        self.videos = []
         html = client.request(url)
-        mlink = SoupStrainer('div', {'class': re.compile('entry-content')})
-        videoclass = BeautifulSoup(html, "html.parser", parse_only=mlink)
+        mlink = SoupStrainer('li', {'data-src': True})
+        options = BeautifulSoup(html, "html.parser", parse_only=mlink)
 
-        try:
-            links = videoclass.find_all('iframe')
-            for link in links:
-                vidurl = link.get('src')
-                self.resolve_media('{0}|Referer={1}'.format(vidurl, self.bu), self.videos)
-        except:
-            pass
-
-        try:
-            videoclass.find('div', {'class': 'post-share'}).decompose()
-            links = videoclass.find_all('a', {'target': '_blank'})
-            for link in links:
-                vidurl = link.get('href')
-                self.resolve_media('{0}|Referer={1}'.format(vidurl, self.bu), self.videos)
-        except:
-            import traceback
-            traceback.print_exc()
-            pass
+        for li in options.find_all('li', attrs={'data-src': True}):
+            try:
+                trurl = base64.b64decode(li['data-src']).decode('utf-8')
+            except Exception:
+                continue
+            vidtxt = li.get_text(' ', strip=True)
+            vidtxt = re.sub(r'^\d+\s*', '', vidtxt).strip()
+            try:
+                ehtml = client.request(trurl, referer=url)
+                embed = re.search(r'<iframe[^>]+src=["\']([^"\']+)', ehtml)
+                if embed:
+                    vidurl = embed.group(1)
+                    if vidurl.startswith('//'):
+                        vidurl = 'https:' + vidurl
+                    self.resolve_media('{0}|Referer={1}'.format(vidurl, self.bu), self.videos, vidtxt)
+            except Exception:
+                pass
 
         return sorted(self.videos)
+
+    def get_video(self, url):
+        return self.get_videos(url)

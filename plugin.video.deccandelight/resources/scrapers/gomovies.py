@@ -25,23 +25,24 @@ from six.moves import urllib_parse
 class gomovies(Scraper):
     def __init__(self):
         Scraper.__init__(self)
-        self.bu = 'https://ogomovies.org/genre/'
+        self.bu = 'https://ogomovies.org/category/'
         self.icon = self.ipath + 'gomovies.png'
 
-        self.list = {'01Tamil Movies': self.bu + 'watch-tamil-movies/',
-                     '02Telugu Movies': self.bu + 'telugu/',
-                     '03Malayalam Movies': self.bu + 'gomovies-malayalam/',
-                     '04Kannada Movies': self.bu + 'kannada/',
-                     '05Hindi': self.bu + 'watch-hindi-movies/',
-                     '06Punjabi Movies': self.bu + 'punjabi/',
-                     '07Multi Audio Movies': self.bu + 'multi-language/',
-                     '08Hollywood': self.bu + 'hollywood/',
-                     '09Hindi Dubbed': self.bu + 'hindi-dubbed/',
-                     '10Tamil Dubbed': self.bu + 'tamil-dubbed/',
-                     '11South Dubbed': self.bu + 'south-dubbed/',
-                     '50Web Series': self.bu + 'hindi-web-series/',
-                     '87[COLOR cyan]Adult 18+[/COLOR]': self.bu + 'erotic-movies/',
-                     '99[COLOR yellow]** Search **[/COLOR]': self.bu[:-6] + '?s='}
+        self.list = {'01Tamil Movies': self.bu + 'tamil-movies/',
+                     '02Telugu Movies': self.bu + 'telugu-movies/',
+                     '03Malayalam Movies': self.bu + 'malayalam-movies/',
+                     '04Kannada Movies': self.bu + 'kannada-movies/',
+                     '05Hindi Movies': self.bu + 'bollywood-movies/',
+                     '06Punjabi Movies': self.bu + 'punjabi-movies/',
+                     '07Multi Audio Movies': self.bu + 'multi-language-movies/',
+                     '08Hollywood': self.bu + 'hollywood-movies/',
+                     '09Hindi Dubbed': self.bu + 'hindi-dubbed-movies/',
+                     '10Dual Audio': self.bu + 'dual-audio/',
+                     '11South Indian': self.bu + 'south-indian-movies/',
+                     '12Netflix Movies': self.bu + 'netflix-movies/',
+                     '50Web Series': self.bu + 'web-series/',
+                     '51TV Shows': self.bu + 'tv-shows/',
+                     '99[COLOR yellow]** Search **[/COLOR]': self.bu[:-9] + '?s='}
 
     def get_menu(self):
         return (self.list, 7, self.icon)
@@ -49,93 +50,68 @@ class gomovies(Scraper):
     def get_items(self, url):
         movies = []
         if url[-3:] == '?s=':
-            search_text = self.get_SearchQuery('Go Movies')
+            search_text = self.get_SearchQuery('GoMovies')
             search_text = urllib_parse.quote_plus(search_text)
             url = url + search_text
 
         html = client.request(url, verify=False)
-        mlink = SoupStrainer('div', {'class': 'movies-list movies-list-full'})
+        mlink = SoupStrainer('article', {'class': re.compile('loop-entry')})
         mdiv = BeautifulSoup(html, "html.parser", parse_only=mlink)
-        plink = SoupStrainer('div', {'id': 'pagination'})
+        plink = SoupStrainer('div', {'class': 'nav-links'})
         Paginator = BeautifulSoup(html, "html.parser", parse_only=plink)
-        items = mdiv.find_all('div', {'class': re.compile('^ml-item')})
+        items = mdiv.find_all('article')
 
         for item in items:
-            title = self.unescape(item.find('a')['oldtitle'])
+            hdr = item.find(['h1', 'h2', 'h3'], {'class': 'entry-title'})
+            if not hdr or not hdr.find('a'):
+                continue
+            link = hdr.find('a')
+            title = self.unescape(link.text).strip()
             title = title.encode('utf-8') if self.PY2 else title
-            qual = item.find('span', {'class': 'mli-quality'})
-            if qual:
-                title += ' [COLOR cyan]{0}[/COLOR]'.format(qual.text)
+            iurl = link['href']
 
-            iurl = item.find('a')['href']
             try:
-                thumb = item.find('img')['data-original']
+                img = item.find('img')
+                thumb = img.get('data-src') or img.get('src')
+                if not thumb or thumb.startswith('data:'):
+                    srcset = img.get('data-srcset') or img.get('srcset') or ''
+                    thumb = srcset.split(' ')[0] if srcset else self.icon
             except:
                 thumb = self.icon
-            if self.bu[:-6] in thumb:
-                thumb += '|verifypeer=false'
 
-            mode = 6 if 'hindi-web-series' in url else 8
             movies.append((title, thumb, iurl))
 
-        r = re.search('class="active".+?href="([^"]+)', str(Paginator))
+        nextli = Paginator.find('a', {'class': 'next'})
+        if nextli and nextli.get('href'):
+            purl = nextli['href']
+            currpg = Paginator.find('span', {'class': 'current'})
+            currpg = currpg.text.strip() if currpg else '1'
+            title = 'Next Page.. (Currently in Page {})'.format(currpg)
+            movies.append((title, self.nicon, purl))
 
-        if r:
-            currpg = Paginator.find('span', {'class': 'active'}).text
-            lastpg = Paginator.find_all('li')[-1].find('a')['href'].split('/')[-2]
-            title = 'Next Page.. (Currently in Page {} of {})'.format(currpg, lastpg)
-            movies.append((title, self.nicon, r.group(1)))
-
-        return (movies, mode)
-
-    def get_third(self, iurl):
-        """
-        Get the list of shows.
-        :return: list
-        """
-        iurl = iurl + 'watching/'
-        shows = []
-        edata = {}
-        html = client.request(iurl, verify=False)
-        mlink = SoupStrainer('ul', {'class': 'dropdown-menu'})
-        videoclass = BeautifulSoup(html, "html.parser", parse_only=mlink)
-        vtabs = videoclass.find_all('li')
-        for vtab in vtabs:
-            eurl = vtab.get('data-drive') or vtab.get('data-openload')
-            if eurl:
-                html1 = client.request(eurl, verify=False)
-                mlink1 = SoupStrainer('div', {'class': 'content-pt'})
-                videoclass1 = BeautifulSoup(html1, "html.parser", parse_only=mlink1)
-                vtabs1 = videoclass1.find_all('a')
-                for vtab1 in vtabs1:
-                    videourl = vtab1.get('href')
-                    videourl = videourl.split('?link=')[-1]
-                    title = re.sub(r'PLAYER\s*\d', '', vtab1.text).strip()
-                    if title in edata.keys():
-                        edata[title].append(videourl)
-                    else:
-                        edata.update({title: [videourl]})
-
-        for key in edata.keys():
-            shows.append((key, self.icon, 'ZZZZ'.join(edata[key])))
-
-        return (shows, 8)
+        return (movies, 8)
 
     def get_videos(self, url):
         videos = []
-        if 'ZZZZ' in url:
-            for eurl in url.split('ZZZZ'):
-                self.resolve_media(eurl, videos)
-        else:
-            url = url + 'watching/'
-            html = client.request(url, verify=False)
-            mlink = SoupStrainer('ul', {'class': 'dropdown-menu'})
-            videoclass = BeautifulSoup(html, "html.parser", parse_only=mlink)
-            links = videoclass.find_all('li')
-            for link in links:
-                iurl = link.get('data-drive') or link.get('data-openload') or link.get('data-streamgo') or link.get('data-putload')
-                if '/hls/' in iurl:
-                    videos.append(('CDN Direct', iurl + '|User-Agent=iPad'))
-                elif 'download' not in link.text.lower():
+        html = client.request(url, verify=False)
+        mlink = SoupStrainer('div', {'class': re.compile('entry-content')})
+        videoclass = BeautifulSoup(html, "html.parser", parse_only=mlink)
+
+        links = videoclass.find_all('a', href=True)
+        for link in links:
+            iurl = link['href']
+            if self.bu[:-9] in iurl or 'np-downloader' in iurl or iurl.endswith('.srt'):
+                continue
+            self.resolve_media(iurl, videos)
+
+        try:
+            for frame in videoclass.find_all('iframe'):
+                iurl = frame.get('src') or frame.get('data-src') or frame.get('data-litespeed-src')
+                if iurl:
+                    if iurl.startswith('//'):
+                        iurl = 'https:' + iurl
                     self.resolve_media(iurl, videos)
+        except:
+            pass
+
         return videos

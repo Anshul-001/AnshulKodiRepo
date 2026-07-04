@@ -32,59 +32,69 @@ class tyogi(Scraper):
     def get_menu(self):
         html = client.request(self.bu)
         items = {}
-        cats = re.findall(r'''<li\s*class="menu-item[^>]+><a\s*href="([^"]+)">(?!Home)([^<]+)''', html)
+        mlink = SoupStrainer('li', {'class': re.compile('menu-item')})
+        mdiv = BeautifulSoup(html, "html.parser", parse_only=mlink)
         sno = 1
-        for cat, title in cats:
-            items['%02d' % sno + title] = cat
+        for li in mdiv.find_all('li'):
+            a = li.find('a')
+            if not a or not a.get('href'):
+                continue
+            title = a.text.strip()
+            if not title or title.lower() == 'home':
+                continue
+            url = urllib_parse.urljoin(self.bu, a.get('href'))
+            items['%02d' % sno + title] = url
             sno += 1
         items['%02d' % sno + '[COLOR yellow]** Search **[/COLOR]'] = self.bu + '?s='
         return (items, 7, self.icon)
 
     def get_items(self, iurl):
         movies = []
-        search = False
         if iurl[-3:] == '?s=':
-            search = True
-            search_text = self.get_SearchQuery('Tamil Yogi')
+            search_text = self.get_SearchQuery('TamilYogi')
             search_text = urllib_parse.quote_plus(search_text)
             iurl += search_text
 
         nmode = 8
         html = client.request(iurl)
 
-        if search:
-            mlink = SoupStrainer('div', {'id': 'content'})
-            mdiv = BeautifulSoup(html, "html.parser", parse_only=mlink)
-            items = mdiv.find_all('li', {'class': 'post'})
-        else:
-            mlink = SoupStrainer('div', {'class': 'grid-items'})
-            mdiv = BeautifulSoup(html, "html.parser", parse_only=mlink)
-            items = mdiv.find_all('div', {'class': 'item'})
+        mlink = SoupStrainer('article', {'class': 'movie-card'})
+        mdiv = BeautifulSoup(html, "html.parser", parse_only=mlink)
+        items = mdiv.find_all('article', {'class': 'movie-card'})
 
-        plink = SoupStrainer('div', {'class': 'paginate'})
+        plink = SoupStrainer('div', {'class': 'pagination'})
         Paginator = BeautifulSoup(html, "html.parser", parse_only=plink)
 
         for item in items:
-            if search:
-                title = item.find('h2').text.strip()
-                url = item.find('h2').a.get('href')
-            else:
-                title = item.find('div', {'class': re.compile('title$')}).text.strip()
-                url = item.find('a')['href']
-            if ')' in title and '-series' not in iurl:
+            a = item.find('a')
+            if not a or not a.get('href'):
+                continue
+            url = urllib_parse.urljoin(self.bu, a.get('href'))
+            title = item.find('h3').text.strip()
+            if ')' in title and '-series' not in iurl and '/tvshows' not in iurl:
                 title = title.split(')')[0] + ')'
             try:
                 img = item.find('img')
                 thumb = img.get('data-src') or img.get('src')
+                if thumb and thumb.startswith('/'):
+                    thumb = urllib_parse.urljoin(self.bu, thumb)
+                if not thumb:
+                    thumb = self.icon
             except:
                 thumb = self.icon
             movies.append((title, thumb, url))
 
-        if 'Next' in str(Paginator):
-            purl = Paginator.find('a', {'class': re.compile('next')}).get('href')
-            currpg = Paginator.find('span', {'class': re.compile('current$')}).text
-            lastpg = Paginator.find_all("a", {'class': 'page-numbers'})[-2].text
-            pgtxt = '{0} of {1}'.format(currpg, lastpg)
+        nextli = Paginator.find('a', {'class': re.compile('next')})
+        if nextli and nextli.get('href'):
+            purl = nextli.get('href')
+            try:
+                currpg = Paginator.find('span', {'class': re.compile('current')}).text.strip()
+                nums = [a.text.strip() for a in Paginator.find_all('a', {'class': 'page-numbers'})
+                        if a.text.strip().isdigit()]
+                lastpg = nums[-1] if nums else currpg
+                pgtxt = '{0} of {1}'.format(currpg, lastpg)
+            except:
+                pgtxt = purl.rstrip('/').split('/')[-1]
             title = 'Next Page... (Currently in Page {0})'.format(pgtxt)
             movies.append((title, self.nicon, purl))
 
@@ -94,38 +104,32 @@ class tyogi(Scraper):
         videos = []
 
         html = client.request(url, headers=self.hdr)
-        mlink = SoupStrainer('div', {'class': 'entry-content'})
+        mlink = SoupStrainer('button', {'class': re.compile('v3-btn')})
         videoclass = BeautifulSoup(html, "html.parser", parse_only=mlink)
-        for target in videoclass.find_all('li'):
-            target.decompose()
 
-        try:
-            links = videoclass.find_all('a')
-            for link in links:
-                vidurl = link.get('href') + '$${0}'.format(self.bu)
-                vidtxt = link.text.strip()
-                self.resolve_media(vidurl, videos, vidtxt=vidtxt)
-        except:
-            pass
+        links = videoclass.find_all('button')
+        if not links:
+            for vidurl in re.findall(r'data-url=["\']([^"\']+)', html):
+                self.resolve_media(vidurl + '$${0}'.format(self.bu), videos)
+            return videos
 
-        try:
-            links = videoclass.find_all('iframe')
-            for link in links:
-                vidurl = link.get('src').replace(' ', '')
-                self.resolve_media(vidurl, videos)
-        except:
-            pass
+        for link in links:
+            vidurl = link.get('data-url')
+            if not vidurl:
+                continue
+            vidurl = vidurl.replace(' ', '') + '$${0}'.format(self.bu)
+            vidtxt = link.text.strip()
+            self.resolve_media(vidurl, videos, vidtxt=vidtxt)
 
         return videos
 
     def get_video(self, url):
         html = client.request(url, referer=self.bu)
-        mlink = SoupStrainer('div', {'class': 'entry-content'})
-        mdiv = BeautifulSoup(html, "html.parser", parse_only=mlink)
-        eurl = mdiv.find('iframe').get('src').replace(' ', '')
-        eurl += '$${0}'.format(self.bu)
-        if self.hmf(eurl):
-            return eurl
+        eurls = re.findall(r'data-url=["\']([^"\']+)', html)
+        for eurl in eurls:
+            eurl = eurl.replace(' ', '') + '$${0}'.format(self.bu)
+            if self.hmf(eurl):
+                return eurl
 
-        self.log('{0} not resolvable {1}.\n'.format(url, eurl), 'info')
+        self.log('{0} not resolvable.\n'.format(url), 'info')
         return
