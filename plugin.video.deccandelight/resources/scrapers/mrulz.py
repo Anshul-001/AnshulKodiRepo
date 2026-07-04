@@ -18,15 +18,31 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 import json
 import re
 from bs4 import BeautifulSoup, SoupStrainer
-from resources.lib import client
+from resources.lib import cache, client, control
 from resources.lib.base import Scraper
 from six.moves import urllib_parse
+
+MIRRORS = [
+    'https://www.5movierulz.fan/',
+    'https://www.5movierulz.repair/',
+    'https://www.5movierulz.bargains/',
+    'https://www.5movierulz.social/',
+]
+
+
+def working_mirror():
+    for base in MIRRORS:
+        html = client.request(base + 'category/telugu-movie/', headers=control.mozhdr, timeout='10')
+        if html and 'boxed film' in html:
+            return base
+    return None
 
 
 class mrulz(Scraper):
     def __init__(self):
         Scraper.__init__(self)
-        self.bu = 'https://www.5movierulz.fan/category/'  # 'https://www.5movierulz.bargains/category/' 'https://www.5movierulz.social/category/'
+        base = cache.get(working_mirror, 8) or MIRRORS[0]
+        self.bu = base + 'category/'
         self.icon = self.ipath + 'mrulz.png'
         self.list = {'01Tamil Movies': self.bu + 'tamil-movie/',
                      '02Telugu Movies': self.bu + 'telugu-movie/',

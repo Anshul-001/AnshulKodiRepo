@@ -1,3 +1,9 @@
+[B]Version 2.0.61 - 04 Jul 2026[/B]
+- Scrapers Fixed/Updated:
+    - movierulz: automatic mirror fallback - probes known domains
+      (fan/repair/bargains/social) and uses the first working one,
+      cached for 8 hours with stale-cache fallback
+
 [B]Version 2.0.60 - 04 Jul 2026[/B]
 - Fork maintained in Anshul Kodi Repo
 - Base Code Changes
