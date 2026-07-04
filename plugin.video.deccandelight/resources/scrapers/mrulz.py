@@ -26,7 +26,7 @@ from six.moves import urllib_parse
 class mrulz(Scraper):
     def __init__(self):
         Scraper.__init__(self)
-        self.bu = 'https://www.5movierulz.repair/category/'  # 'https://www.5movierulz.bargains/category/' 'https://www.5movierulz.social/category/'
+        self.bu = 'https://www.5movierulz.fan/category/'  # 'https://www.5movierulz.bargains/category/' 'https://www.5movierulz.social/category/'
         self.icon = self.ipath + 'mrulz.png'
         self.list = {'01Tamil Movies': self.bu + 'tamil-movie/',
                      '02Telugu Movies': self.bu + 'telugu-movie/',
