@@ -25,7 +25,7 @@ from six.moves import urllib_parse
 class gomovies(Scraper):
     def __init__(self):
         Scraper.__init__(self)
-        self.bu = 'https://ogomovies.org/category/'
+        self.bu = self.resolve_domain('gomovies', ['https://ogomovies.org/'], 'category/tamil-movies/', 'loop-entry') + 'category/'
         self.icon = self.ipath + 'gomovies.png'
 
         self.list = {'01Tamil Movies': self.bu + 'tamil-movies/',

@@ -11,5 +11,35 @@
       "https://www.5movierulz.repair/",
       "https://www.5movierulz.fan/"
     ]
+  },
+  "tyogi": {
+    "probe": "genre/tamil/",
+    "marker": "movie-card",
+    "mirrors": ["https://tamilyogi.legal/"]
+  },
+  "moviehax": {
+    "probe": "genre/hindi-dubbed-movies/",
+    "marker": "items normal",
+    "mirrors": ["https://moviehax.watch/"]
+  },
+  "gomovies": {
+    "probe": "category/tamil-movies/",
+    "marker": "loop-entry",
+    "mirrors": ["https://ogomovies.org/"]
+  },
+  "hflinks": {
+    "probe": "genre/bollywood/",
+    "marker": "ml-item",
+    "mirrors": ["https://hindilinks4u.foundation/"]
+  },
+  "pdesi": {
+    "probe": "movie/",
+    "marker": "TPost",
+    "mirrors": ["https://www.play-desi.org/"]
+  },
+  "yodesi": {
+    "probe": "category/anupama-serial/",
+    "marker": "item-list",
+    "mirrors": ["https://yodesionline.com/"]
   }
 }

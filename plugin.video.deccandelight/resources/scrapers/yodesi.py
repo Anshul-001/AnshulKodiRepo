@@ -27,7 +27,7 @@ from six.moves import urllib_parse
 class yodesi(Scraper):
     def __init__(self):
         Scraper.__init__(self)
-        self.bu = 'https://yodesionline.com/'
+        self.bu = self.resolve_domain('yodesi', ['https://yodesionline.com/'], 'category/anupama-serial/', 'item-list')
         self.icon = self.ipath + 'yodesi.png'
         self.videos = []
         # The relaunched site is organised as one WordPress category per serial

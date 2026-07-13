@@ -1,3 +1,10 @@
+[B]Version 2.2.1 - 15 Jul 2026[/B]
+- Wired 6 more hop-prone sites into the remote mirror registry, so they
+  can be repointed to fresh domains via a mirrors.json edit (no addon
+  release): tamilyogi, moviehax, gomovies, hindilinks4u pro, playdesi,
+  yodesi. Each still falls back to its built-in domain if the registry
+  is unreachable.
+
 [B]Version 2.2.0 - 15 Jul 2026[/B]
 - New: remote-controlled mirror registry. A mirrors.json file in the repo
   lets a hopping site be repointed to a fresh domain with a single edit -

@@ -25,7 +25,7 @@ from six.moves import urllib_parse
 class hflinks(Scraper):
     def __init__(self):
         Scraper.__init__(self)
-        self.bu = 'https://hindilinks4u.foundation/'
+        self.bu = self.resolve_domain('hflinks', ['https://hindilinks4u.foundation/'], 'genre/bollywood/', 'ml-item')
         self.icon = self.ipath + 'hflinks.png'
 
         self.list = {'01Dual Audio': self.bu + 'genre/dual-audio/',

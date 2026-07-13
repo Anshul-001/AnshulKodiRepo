@@ -28,7 +28,7 @@ from six.moves import urllib_parse
 class pdesi(Scraper):
     def __init__(self):
         Scraper.__init__(self)
-        self.bu = 'https://www.play-desi.org/'
+        self.bu = self.resolve_domain('pdesi', ['https://www.play-desi.org/'], 'movie/', 'TPost')
         self.icon = self.ipath + 'pdesi.png'
         self.videos = []
 
