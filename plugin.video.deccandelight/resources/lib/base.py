@@ -49,6 +49,50 @@ def probe_mirrors(mirrors, probe_path, marker):
     return None
 
 
+# Remote-controlled mirror registry. A single JSON file committed at the repo
+# root maps a site key -> {probe, marker, mirrors}. When a site hops domains we
+# edit this one file and every user picks up the change within the cache window,
+# with no addon release. On ANY failure we fall back to the scraper's hardcoded
+# list so nothing regresses offline.
+REMOTE_MIRRORS_URL = 'https://raw.githubusercontent.com/Anshul-001/AnshulKodiRepo/master/mirrors.json'
+
+
+def fetch_remote_mirrors():
+    """Fetch and parse the remote mirrors.json registry.
+    Returns the parsed dict, or a truthy {'__miss__': True} sentinel on any
+    failure. Returning a truthy value (rather than None) lets cache.get memoize
+    the miss, so a failed/blocked fetch is not retried on every navigation."""
+    try:
+        raw = client.request(REMOTE_MIRRORS_URL, headers=control.mozhdr, timeout='6')
+        if raw:
+            data = json.loads(raw)
+            if isinstance(data, dict):
+                return data
+    except Exception:
+        pass
+    return {'__miss__': True}
+
+
+def remote_site_config(site):
+    """Return the {mirrors, probe, marker} config for a site key from the remote
+    registry, or None if unavailable. The parsed registry is cached ~12h so it is
+    not re-fetched on every click."""
+    from resources.lib import cache
+    try:
+        data = cache.get(fetch_remote_mirrors, 12)
+        if not data or not isinstance(data, dict) or data.get('__miss__'):
+            return None
+        cfg = data.get(site)
+        if not cfg or not isinstance(cfg, dict):
+            return None
+        mirrors = cfg.get('mirrors')
+        if not mirrors or not isinstance(mirrors, list):
+            return None
+        return cfg
+    except Exception:
+        return None
+
+
 class Scraper(object):
 
     def __init__(self):
@@ -73,6 +117,46 @@ class Scraper(object):
         from resources.lib import cache
         base = cache.get(probe_mirrors, 8, mirrors, probe_path, marker)
         return base or mirrors[0]
+
+    def resolve_domain(self, site, fallback_mirrors, probe_path='', marker='</'):
+        """Remote-controlled mirror resolver.
+
+        Pulls the remote config for ``site`` from mirrors.json (cached ~12h). If
+        present, uses the remote mirror list (remote entries first, then any
+        local ``fallback_mirrors`` not already present, de-duped) plus the remote
+        probe/marker override. If the remote fetch fails or lacks the site, falls
+        back to ``fallback_mirrors`` / ``probe_path`` / ``marker`` -- i.e. today's
+        behavior, so nothing regresses offline. Then reuses the existing
+        cached-probe (same semantics as ``first_working_mirror``) to pick the
+        first working mirror. Never crashes: on total failure returns the first
+        candidate."""
+        try:
+            cfg = remote_site_config(site)
+        except Exception:
+            cfg = None
+
+        probe, mark = probe_path, marker
+        mirrors = []
+        if cfg:
+            # only accept string mirror entries, so a malformed registry can't
+            # inject a non-string base that later crashes url concatenation
+            mirrors = [m for m in cfg.get('mirrors', []) if isinstance(m, str) and m]
+            probe = cfg.get('probe') or probe_path
+            mark = cfg.get('marker') or marker
+        for m in fallback_mirrors:
+            if m not in mirrors:
+                mirrors.append(m)
+
+        if not mirrors:
+            return fallback_mirrors[0] if fallback_mirrors else ''
+
+        try:
+            base = self.first_working_mirror(mirrors, probe, mark)
+        except Exception:
+            base = mirrors[0]
+        if not isinstance(base, str):
+            base = fallback_mirrors[0] if fallback_mirrors else mirrors[0]
+        return base
 
     class Thread(threading.Thread):
         def __init__(self, target, *args):

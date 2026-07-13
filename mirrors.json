@@ -1,0 +1,15 @@
+{
+  "mrulz": {
+    "probe": "category/telugu-movies/",
+    "marker": "boxed film",
+    "mirrors": [
+      "https://www.5movierulz.support/",
+      "https://www.5movierulz.voto/",
+      "https://www.5movierulz.gdn/",
+      "https://www.5movierulz.discount/",
+      "https://www.5movierulz.limited/",
+      "https://www.5movierulz.repair/",
+      "https://www.5movierulz.fan/"
+    ]
+  }
+}

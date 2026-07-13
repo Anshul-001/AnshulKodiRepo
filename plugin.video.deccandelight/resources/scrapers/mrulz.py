@@ -22,10 +22,12 @@ from resources.lib import client
 from resources.lib.base import Scraper
 from six.moves import urllib_parse
 
-# MovieRulz hops domains constantly. This list spans the current
-# families; the probe below picks the first one that actually serves
-# the expected listing markup from the user's network, cached 8h.
-# When all of these die, add whichever mirror loads in a browser.
+# MovieRulz hops domains constantly. This list is the OFFLINE FALLBACK,
+# used when the remote mirrors.json registry is unreachable or lacks a
+# 'mrulz' entry. resolve_domain() prefers the remote list (edit one JSON
+# commit to point all users at a fresh domain), then probes to pick the
+# first mirror that actually serves the expected listing markup, cached 8h.
+# When all of these die, update mirrors.json (or add a mirror here).
 MIRRORS = [
     'https://www.5movierulz.support/',
     'https://www.5movierulz.voto/',
@@ -40,7 +42,7 @@ MIRRORS = [
 class mrulz(Scraper):
     def __init__(self):
         Scraper.__init__(self)
-        base = self.first_working_mirror(MIRRORS, 'category/telugu-movies/', 'boxed film')
+        base = self.resolve_domain('mrulz', MIRRORS, 'category/telugu-movies/', 'boxed film')
         self.bu = base + 'category/'
         self.icon = self.ipath + 'mrulz.png'
         self.list = {'01Tamil Movies': self.bu + 'tamil-movies/',

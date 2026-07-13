@@ -1,3 +1,10 @@
+[B]Version 2.2.0 - 15 Jul 2026[/B]
+- New: remote-controlled mirror registry. A mirrors.json file in the repo
+  lets a hopping site be repointed to a fresh domain with a single edit -
+  all users pick it up within ~12h, no addon update needed. Falls back to
+  the built-in domain list whenever the registry is unreachable, so nothing
+  regresses offline. movierulz is the first site wired to it.
+
 [B]Version 2.1.4 - 15 Jul 2026[/B]
 - movierulz: hopped to a new domain cluster (5movierulz.support family).
   Widened the auto-mirror list to span both the new and old families and
