@@ -1,3 +1,10 @@
+[B]Version 2.1.4 - 15 Jul 2026[/B]
+- movierulz: hopped to a new domain cluster (5movierulz.support family).
+  Widened the auto-mirror list to span both the new and old families and
+  fixed the probe to test the same category slug the menu uses, so it can
+  no longer pick a mirror that passes the probe but shows an empty menu.
+  (Updating triggers a fresh mirror probe automatically.)
+
 [B]Version 2.1.3 - 04 Jul 2026[/B]
 - Fixes from code review:
     - Fixed a long-standing typo (missing comma) that dropped Hindi Links 4U

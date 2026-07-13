@@ -22,18 +22,25 @@ from resources.lib import client
 from resources.lib.base import Scraper
 from six.moves import urllib_parse
 
+# MovieRulz hops domains constantly. This list spans the current
+# families; the probe below picks the first one that actually serves
+# the expected listing markup from the user's network, cached 8h.
+# When all of these die, add whichever mirror loads in a browser.
 MIRRORS = [
-    'https://www.5movierulz.fan/',
+    'https://www.5movierulz.support/',
+    'https://www.5movierulz.voto/',
+    'https://www.5movierulz.gdn/',
+    'https://www.5movierulz.discount/',
+    'https://www.5movierulz.limited/',
     'https://www.5movierulz.repair/',
-    'https://www.5movierulz.bargains/',
-    'https://www.5movierulz.social/',
+    'https://www.5movierulz.fan/',
 ]
 
 
 class mrulz(Scraper):
     def __init__(self):
         Scraper.__init__(self)
-        base = self.first_working_mirror(MIRRORS, 'category/telugu-movie/', 'boxed film')
+        base = self.first_working_mirror(MIRRORS, 'category/telugu-movies/', 'boxed film')
         self.bu = base + 'category/'
         self.icon = self.ipath + 'mrulz.png'
         self.list = {'01Tamil Movies': self.bu + 'tamil-movies/',
