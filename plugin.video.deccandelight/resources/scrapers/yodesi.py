@@ -21,33 +21,17 @@ import re
 from bs4 import BeautifulSoup, SoupStrainer
 from resources.lib import client
 from resources.lib.base import Scraper
+from resources.lib.htmlutils import absolute, append_next, document, thumbnail
 from six.moves import urllib_parse
 
 
 class yodesi(Scraper):
     def __init__(self):
         Scraper.__init__(self)
-        self.bu = self.resolve_domain('yodesi', ['https://yodesionline.com/'], 'category/anupama-serial/', 'item-list')
+        self.bu = self.resolve_domain('yodesi', ['https://www.yodesi.net/', 'https://yodesi.tv/'], '', 'latestPost')
         self.icon = self.ipath + 'yodesi.png'
         self.videos = []
-        # The relaunched site is organised as one WordPress category per serial
-        # (no channel grouping). get_menu fetches the live list; this static set
-        # of popular serials is the fallback if that request fails.
-        self.list = {'01Yeh Rishta Kya Kehlata Hai': self.bu + 'category/yeh-rishta-kya-kehlata-hai-serial/',
-                     '02Kyunki Saas Bhi Kabhi Bahu Thi 2': self.bu + 'category/kyunki-saas-bhi-kabhi-bahu-thi-2/',
-                     '03Anupama': self.bu + 'category/anupama-serial/',
-                     '04Kyunki Rishton Ke Bhi Roop Badalte Hai': self.bu + 'category/kyunki-rishton-ke-bhi-roop-badalte-hai/',
-                     '05Mannat': self.bu + 'category/mannat/',
-                     '06Mr and Mrs Parshuram': self.bu + 'category/mr-and-mrs-parshuram/',
-                     '07Seher Hone Ko Hai': self.bu + 'category/seher-hone-ko-hai/',
-                     '08O Humnava Tum Dena Saath Mera': self.bu + 'category/o-humnava-tum-dena-saath-mera/',
-                     '09Tu Juliet Jatt Di': self.bu + 'category/tu-juliet-jatt-di/',
-                     '10Udne Ki Aasha': self.bu + 'category/udne-ki-aasha/',
-                     '11Pushpa Impossible': self.bu + 'category/pushpa-impossible/',
-                     '12Taarak Mehta Ka Ooltah Chashmah': self.bu + 'category/taarak-mehta-ka-ooltah-chashmah/',
-                     '13Jhanak': self.bu + 'category/jhanak/',
-                     '14Mangal Lakshmi': self.bu + 'category/mangal-lakshmi/',
-                     '15Naagin 7': self.bu + 'category/naagin-7/'}
+        self.list = {'01Latest Episodes': self.bu}
 
     def get_menu(self):
         mlist = self._categories()
@@ -69,6 +53,12 @@ class yodesi(Scraper):
                 raise ValueError('no categories')
             mlist = {}
             for ino, cat in enumerate(cats, 1):
+                # WordPress reports a nonzero count for this empty archive.
+                # Keep it hidden while empty and let it return when posts do.
+                if cat.get('slug') == 'colors-awards-and-concerts':
+                    page = client.request(cat['link'])
+                    if page is not None and not document(page).select_one('article.latestPost, div.latestPost'):
+                        continue
                 mlist['{0:02d}{1}'.format(ino, self.unescape(cat['name']))] = cat['link']
             return mlist
         except Exception:
@@ -87,74 +77,51 @@ class yodesi(Scraper):
 
     def get_items(self, url):
         movies = []
-        if url[-3:] == '?s=':
-            search_text = self.get_SearchQuery('YoDesi')
-            search_text = urllib_parse.quote_plus(search_text)
-            url = url + search_text
-        html = client.request(url)
-        mlink = SoupStrainer('article', {'class': re.compile('item-list')})
-        mdiv = BeautifulSoup(html, "html.parser", parse_only=mlink)
-        items = mdiv.find_all('article')
-
-        for item in items:
-            head = item.find('h2', {'class': 'post-box-title'}) or item
-            link = head.find('a')
+        if url.endswith('?s='):
+            url += urllib_parse.quote_plus(self.get_SearchQuery('YoDesi'))
+        soup = document(client.request(url))
+        seen = set()
+        for item in soup.select('article, div.latestPost'):
+            heading = item.find(['h2', 'h3'])
+            link = heading.find('a', href=True) if heading else None
             if not link:
                 continue
-            title = self.unescape(link.get_text(strip=True))
-            title = self.clean_title(title)
-            url = link.get('href')
-            img = item.find('img')
-            try:
-                thumb = img.get('data-src') or img.get('src')
-            except AttributeError:
-                thumb = self.icon
-            movies.append((title, thumb or self.icon, url))
-
-        plink = SoupStrainer('div', {'class': 'pagination'})
-        Paginator = BeautifulSoup(html, "html.parser", parse_only=plink)
-        nextpg = Paginator.find('span', {'id': 'tie-next-page'})
-        if nextpg and nextpg.find('a'):
-            purl = nextpg.find('a').get('href')
-            curr = Paginator.find('span', {'class': 'current'})
-            currpg = curr.get_text(strip=True) if curr else '?'
-            pages = Paginator.find('span', {'class': 'pages'})
-            lastpg = re.search(r'of\s*([\d,]+)', pages.get_text()) if pages else None
-            lastpg = lastpg.group(1) if lastpg else '?'
-            title = 'Next Page.. (Currently in Page {0} of {1})'.format(currpg, lastpg)
-            movies.append((title, self.nicon, purl))
-
+            target = absolute(url, link.get('href'))
+            title = self.clean_title(self.unescape(link.get_text(' ', strip=True)))
+            if not target or not title or target in seen:
+                continue
+            seen.add(target)
+            movies.append((title, thumbnail(item, url, self.icon), target))
+        append_next(movies, soup, url, self.nicon)
         return (movies, 8)
 
     def get_videos(self, url):
         self.videos = []
-        html = client.request(url)
-        mlink = SoupStrainer('div', {'class': re.compile('single-post-video')})
-        videoclass = BeautifulSoup(html, "html.parser", parse_only=mlink)
-        links = videoclass.find_all('iframe')
-        if not links:
-            mlink = SoupStrainer('article', {'id': 'the-post'})
-            videoclass = BeautifulSoup(html, "html.parser", parse_only=mlink)
-            links = videoclass.find_all('iframe')
+        seen = set()
 
-        multi = len(links) > 1
-        for idx, link in enumerate(links, 1):
-            vidurl = link.get('src') or link.get('data-litespeed-src') or link.get('data-src')
-            if not vidurl:
-                continue
-            if vidurl.startswith('//'):
-                vidurl = 'https:' + vidurl
-            vidtxt = 'Part {0}'.format(idx) if multi else ''
-            self.resolve_media(vidurl, self.videos, vidtxt)
+        def extract(page, source):
+            content = page.select_one('.thecontent, .entry-content, .single-post-video, article#the-post, article') or page
+            for item in content.select('iframe, a[target="_blank"], a[rel="nofollow"]'):
+                target = absolute(source, item.get('src') or item.get('data-litespeed-src') or item.get('data-src') or item.get('href'))
+                if not target or target in seen or any(host in target for host in ('facebook.com/', 'twitter.com/', 'pinterest.com/', 'linkedin.com/')):
+                    continue
+                seen.add(target)
+                self.resolve_media(target, self.videos, item.get_text(' ', strip=True))
 
-        links = videoclass.find_all('a', {'target': '_blank'})
-        for link in links:
-            vidurl = link.get('href')
-            if not vidurl:
-                continue
-            vidtxt = self.unescape(link.text)
-            vidtxt = re.search(r'(Part\s*\d+)', vidtxt, re.IGNORECASE)
-            vidtxt = vidtxt.group(1) if vidtxt else ''
-            self.resolve_media(vidurl, self.videos, vidtxt)
-
+        soup = document(client.request(url))
+        extract(soup, url)
+        if not seen:
+            # Some "Video Episode" posts contain only a related Watch Online
+            # link. Follow one matching show/date on this site, never a different
+            # episode or an arbitrary related article.
+            parsed = urllib_parse.urlsplit(url)
+            prefix = re.match(r'(.+?-\d+(?:st|nd|rd|th)-[a-z]+-\d{4})-', parsed.path, re.I)
+            if prefix:
+                wanted = prefix.group(1) + '-watch-online/'
+                for link in soup.find_all('a', href=True):
+                    target = absolute(url, link.get('href'))
+                    candidate = urllib_parse.urlsplit(target)
+                    if candidate.netloc == parsed.netloc and candidate.path == wanted and target != url:
+                        extract(document(client.request(target)), target)
+                        break
         return sorted(self.videos)
