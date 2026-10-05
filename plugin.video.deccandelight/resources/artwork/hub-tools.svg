@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="768" viewBox="0 0 512 768">
+<defs><linearGradient id="bg" x2="1" y2="1"><stop stop-color="#071b29"/><stop offset="1" stop-color="#163c49"/></linearGradient><radialGradient id="glow"><stop stop-color="#77decd" stop-opacity=".14"/><stop offset="1" stop-color="#77decd" stop-opacity="0"/></radialGradient></defs>
+<rect width="512" height="768" fill="url(#bg)"/><circle cx="315" cy="320" r="280" fill="url(#glow)"/>
+<path d="M360-30 80 800M490-30 210 800M620-30 340 800" stroke="#c5eee5" stroke-opacity=".025" stroke-width="40"/>
+<rect x="20" y="20" width="472" height="728" rx="8" stroke="#b5d6e2" stroke-opacity=".12" fill="none"/>
+<g font-family="DejaVu Sans, sans-serif" fill="#e6f1f4"><text x="44" y="70" font-size="15" letter-spacing="2.2">INDIAN MOVIE HUB</text>
+<text x="44" y="109" font-size="13" fill="#77decd" letter-spacing="1.7">PERSONALIZE</text>
+<g transform="translate(137 237)" color="#77decd" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"><path d="M55 57h131M55 119h131M55 181h131"/><circle cx="85" cy="57" r="18" fill="#102d3b"/><circle cx="155" cy="119" r="18" fill="#102d3b"/><circle cx="101" cy="181" r="18" fill="#102d3b"/></g>
+<path d="M44 510h48" stroke="#77decd" stroke-width="4"/><text x="44" y="578" font-size="38" font-weight="bold">Settings &amp; tools</text>
+<text x="44" y="695" font-size="12" fill="#b5cdd6" letter-spacing="1.1">MAKE IT YOURS</text></g></svg>

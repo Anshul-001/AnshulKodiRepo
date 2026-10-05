@@ -1,0 +1,189 @@
+[B]Version 2.3.0 - 04 Oct 2026[/B]
+- New home: Movies, TV & shows, Music, Search, Watchlist, Recently opened,
+  Favorite sources and Settings & tools, with original cinematic artwork.
+- One-click playback with preferred quality ordering, fresh server discovery,
+  media checks and fallback when a resolver or server fails. Manual selection
+  remains available from the title context menu.
+- Save stable title pages to a local watchlist; revisit recently opened titles
+  and favorite your providers. Collections survive cache clearing.
+- Faster bounded concurrent search and movie metadata, cancellation/progress,
+  stable deduplication and request time budgets.
+- Source availability checks and retry actions. Unavailable providers remain
+  subject to network and website availability.
+- Fix signed-URL decoding and query handling, isolate HTTP cookie/TLS state,
+  close cache database connections and avoid stale/failed stream cache entries.
+- Working local mirrors survive an obsolete or unreachable remote registry.
+- Cleaner provider settings; metadata uses HTTPS and per-worker connections.
+
+[B]Version 2.2.2 - 04 Oct 2026[/B]
+- Restore TamilGun, TodayPK, DesiTellyBox, Hindi Geetmala, YoDesi and
+  ARY browsing after changes to their website layouts.
+- Move YoDesi to yodesi.net and TodayPK to todaypk.biz; add TodayPK
+  to the remote mirror registry and remove retired MovieRulz mirrors.
+- Support TamilGun's current public player API and direct HLS streams.
+- Support TodayPK's public PkSpeed player alias and direct video sources.
+- Restore TodayPK player links and DesiTellyBox's current video section;
+  follow YoDesi's matching Watch Online post for placeholder episodes.
+- Restore ARY programme lists and public official Dailymotion episodes.
+- Normalize relative links and lazy thumbnails, avoid duplicate listings,
+  and handle missing pages and pagination safely.
+- Remove retired TamilGun menus and hide TodayPK's provider-error categories.
+- Network-blocked sources still depend on availability on the user's network.
+
+[B]Version 2.2.1 - 15 Jul 2026[/B]
+- Wired 6 more hop-prone sites into the remote mirror registry, so they
+  can be repointed to fresh domains via a mirrors.json edit (no addon
+  release): tamilyogi, moviehax, gomovies, hindilinks4u pro, playdesi,
+  yodesi. Each still falls back to its built-in domain if the registry
+  is unreachable.
+
+[B]Version 2.2.0 - 15 Jul 2026[/B]
+- New: remote-controlled mirror registry. A mirrors.json file in the repo
+  lets a hopping site be repointed to a fresh domain with a single edit -
+  all users pick it up within ~12h, no addon update needed. Falls back to
+  the built-in domain list whenever the registry is unreachable, so nothing
+  regresses offline. movierulz is the first site wired to it.
+
+[B]Version 2.1.4 - 15 Jul 2026[/B]
+- movierulz: hopped to a new domain cluster (5movierulz.support family).
+  Widened the auto-mirror list to span both the new and old families and
+  fixed the probe to test the same category slug the menu uses, so it can
+  no longer pick a mirror that passes the probe but shows an empty menu.
+  (Updating triggers a fresh mirror probe automatically.)
+
+[B]Version 2.1.3 - 04 Jul 2026[/B]
+- Fixes from code review:
+    - Fixed a long-standing typo (missing comma) that dropped Hindi Links 4U
+      and Movie Hax out of the metadata list, so they now get TMDB art/info
+    - Subtitle year detection no longer mis-reads resolutions like 1920x1080
+    - Movie Hax pagination now degrades gracefully instead of dropping a
+      whole page if the site's "next" markup changes
+
+[B]Version 2.1.2 - 04 Jul 2026[/B]
+- Scrapers Rewritten for relaunched sites (listings, pagination,
+  search, and video-link extraction all re-adapted to new layouts):
+    - tamilyogi (new WordPress theme) - movies verified working
+    - moviehax (fixed dead category slugs + new search/pagination)
+    - gomovies (base path /genre/ -> /category/, new markup)
+    - hindilinks4u pro (rebuilt category list, new base path)
+    - playdesi (new ToroPlay theme, shows/episodes/movies)
+    - yodesi (rebuilt from site WP API, serials/episodes)
+- Known caveats:
+    - tamilyogi web-series episode pages are JS-rendered; movies work
+    - yodesi playback depends on ResolveURL supporting the embed host
+
+[B]Version 2.1.1 - 04 Jul 2026[/B]
+- Scrapers Updated (domains):
+    - tamilyogi: 1tamilyogi.kaufen -> tamilyogi.legal
+    - moviehax: moviehax.top -> moviehax.watch
+    - gomovies: ogomovies.fit -> ogomovies.org
+    - hindilinks4u pro: hindilinks4u.codes -> hindilinks4u.foundation
+    - playdesi: playdesi.info -> play-desi.org
+    - yodesi: yodesi.net -> yodesionline.com
+    - manatelugu: manatelugu.com -> teluguz.com
+    - ibomma: axn.bappam.eu (hijacked) -> ibommamovie.com
+- Note: several of these sites relaunched with new page layouts; their
+  domains are now current but their listing parsers still need updating
+  (tracked for a follow-up, same as the movierulz layout fix).
+- Verified live/unchanged (no edit needed): tamilgun, filmlinks4u,
+  einthusan, hum, geo, watch-movies.com.pk
+
+[B]Version 2.1.0 - 04 Jul 2026[/B]
+- New Features
+    - Global Search: a "* Search All Sites *" entry at the top of the
+      main menu searches every enabled site at once (in parallel) and
+      merges the results into one list, each tagged with its source site.
+    - Subtitle support: the playing item now carries title/year metadata
+      so Kodi's subtitle services (OpenSubtitles, Subscene) can fetch
+      external subtitles by name; embedded subtitles from the resolver
+      continue to load automatically.
+
+[B]Version 2.0.68 - 04 Jul 2026[/B]
+- New Indian Movie Hub icon and fanart artwork
+
+[B]Version 2.0.67 - 04 Jul 2026[/B]
+- Rebranded to "Indian Movie Hub" (display name, dialogs, changelog
+  header). Internal addon id unchanged so existing installs update
+  in place and keep their settings. Based on Deccan Delight by gujal.
+
+[B]Version 2.0.66 - 04 Jul 2026[/B]
+- Base Code Changes
+    - Reverted reuselanguageinvoker to false. With it enabled, addon
+      code updates did not take effect until Kodi was fully restarted
+      (the interpreter stayed resident with old code). For a scraper
+      addon that hits the network on every click, the small navigation
+      speedup was not worth updates silently not applying.
+
+[B]Version 2.0.65 - 04 Jul 2026[/B]
+- Base Code Changes
+    - Removed the ResolveURL button from addon Settings: Kodi cannot
+      reliably open one addon's settings from inside another's settings
+      dialog (it rendered ResolveURL's login fields into the wrong page).
+      Use the "ResolveURL / Debrid Settings" item in the main menu instead,
+      which opens the resolver config cleanly.
+
+[B]Version 2.0.64 - 04 Jul 2026[/B]
+- Base Code Changes
+    - Added direct "ResolveURL / Debrid Settings" shortcut - opens the
+      ResolveURL config (TorBox, RealDebrid, etc) from both the main
+      menu and addon Settings, so the hidden library module no longer
+      has to be hunted for in Kodi
+
+[B]Version 2.0.63 - 04 Jul 2026[/B]
+- Scrapers Fixed/Updated:
+    - movierulz: site relaunched with new page layout - fixed listing
+      container (#container -> #list), pagination, and updated all
+      category slugs (tamil-movies, bollywood-movie, etc). Listings,
+      search, and playback verified working again.
+
+[B]Version 2.0.62 - 04 Jul 2026[/B]
+- Base Code Changes
+    - Faster navigation: reuse Python interpreter between clicks
+      (reuselanguageinvoker), with per-call handle refresh
+    - Friendly notification instead of silent failure or script error
+      when a site is unreachable or its layout changed
+    - Movie metadata (TMDB posters/plots/ratings) enabled by default
+    - Mirror fallback generalized: any scraper can declare a mirror
+      list and auto-use the first working domain
+    - Declared xbmc.python 3.0.0 dependency
+
+[B]Version 2.0.61 - 04 Jul 2026[/B]
+- Scrapers Fixed/Updated:
+    - movierulz: automatic mirror fallback - probes known domains
+      (fan/repair/bargains/social) and uses the first working one,
+      cached for 8 hours with stale-cache fallback
+
+[B]Version 2.0.60 - 04 Jul 2026[/B]
+- Fork maintained in Anshul Kodi Repo
+- Base Code Changes
+    - Removed version-check web request on first run
+
+- Scrapers Fixed/Updated:
+    - movierulz (new domain 5movierulz.repair)
+
+[B]Version 2.0.59 - 16 Mar 2026[/B]
+- Base Code Changes
+    - None
+
+- Scrapers Added:
+    - None
+
+- Scrapers Fixed/Updated:
+    - filmlinks4u
+    - filmlinks4u pro
+    - gomovies
+    - hindilinks4u
+    - playdesi
+    - tamilyogi
+
+- Scrapers Removed:
+    - None
+
+- Broken Scrapers
+    - apnetv (cloudflare captcha)
+    - watchapne (cloudflare captcha)
+    - cinevez
+    - skytamil
+    - tamiltvshows
+    - tamildhool
+    - serialghar

@@ -1,3 +1,44 @@
+[B]Version 2.3.1 - 04 Oct 2026[/B]
+- Restore 0GoMovies using its current ogomovies.dev domain and real genre menus.
+- Parse the current movie cards, lazy poster images, pagination and public
+  watching-page server data; retain older card/video layouts for saved links.
+- Update the remote mirror probe to the current Tamil genre and markup.
+- Restore search through the public suggestions endpoint; list series episodes
+  in order and resolve only the selected episode.
+- Exclude recommendations outside category results and skip trailers/other titles.
+
+[B]Version 2.3.0 - 04 Oct 2026[/B]
+- New home: Movies, TV & shows, Music, Search, Watchlist, Recently opened,
+  Favorite sources and Settings & tools, with original cinematic artwork.
+- One-click playback with preferred quality ordering, fresh server discovery,
+  media checks and fallback when a resolver or server fails. Manual selection
+  remains available from the title context menu.
+- Save stable title pages to a local watchlist; revisit recently opened titles
+  and favorite your providers. Collections survive cache clearing.
+- Faster bounded concurrent search and movie metadata, cancellation/progress,
+  stable deduplication and request time budgets.
+- Source availability checks and retry actions. Unavailable providers remain
+  subject to network and website availability.
+- Fix signed-URL decoding and query handling, isolate HTTP cookie/TLS state,
+  close cache database connections and avoid stale/failed stream cache entries.
+- Working local mirrors survive an obsolete or unreachable remote registry.
+- Cleaner provider settings; metadata uses HTTPS and per-worker connections.
+
+[B]Version 2.2.2 - 04 Oct 2026[/B]
+- Restore TamilGun, TodayPK, DesiTellyBox, Hindi Geetmala, YoDesi and
+  ARY browsing after changes to their website layouts.
+- Move YoDesi to yodesi.net and TodayPK to todaypk.biz; add TodayPK
+  to the remote mirror registry and remove retired MovieRulz mirrors.
+- Support TamilGun's current public player API and direct HLS streams.
+- Support TodayPK's public PkSpeed player alias and direct video sources.
+- Restore TodayPK player links and DesiTellyBox's current video section;
+  follow YoDesi's matching Watch Online post for placeholder episodes.
+- Restore ARY programme lists and public official Dailymotion episodes.
+- Normalize relative links and lazy thumbnails, avoid duplicate listings,
+  and handle missing pages and pagination safely.
+- Remove retired TamilGun menus and hide TodayPK's provider-error categories.
+- Network-blocked sources still depend on availability on the user's network.
+
 [B]Version 2.2.1 - 15 Jul 2026[/B]
 - Wired 6 more hop-prone sites into the remote mirror registry, so they
   can be repointed to fresh domains via a mirrors.json edit (no addon
@@ -135,7 +176,7 @@
 
 - Scrapers Added:
     - None
- 
+
 - Scrapers Fixed/Updated:
     - filmlinks4u
     - filmlinks4u pro

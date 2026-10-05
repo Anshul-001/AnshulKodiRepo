@@ -30,12 +30,10 @@ from six.moves import urllib_parse
 # When all of these die, update mirrors.json (or add a mirror here).
 MIRRORS = [
     'https://www.5movierulz.support/',
-    'https://www.5movierulz.voto/',
     'https://www.5movierulz.gdn/',
     'https://www.5movierulz.discount/',
     'https://www.5movierulz.limited/',
-    'https://www.5movierulz.repair/',
-    'https://www.5movierulz.fan/',
+    'https://www.5movierulz.voto/',
 ]
 
 

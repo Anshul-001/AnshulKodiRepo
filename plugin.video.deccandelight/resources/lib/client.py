@@ -23,6 +23,8 @@ import gzip
 import json
 import random
 import re
+import threading
+from contextlib import contextmanager
 import sys
 import time
 import six
@@ -40,6 +42,19 @@ else:
     _html_parser = html_parser.HTMLParser()
 
 CERT_FILE = control.TRANSLATEPATH('special://xbmc/system/certs/cacert.pem')
+
+
+_request_context = threading.local()
+
+
+@contextmanager
+def request_budget(deadline, cancelled=None):
+    previous = getattr(_request_context, 'policy', None)
+    _request_context.policy = (deadline, cancelled)
+    try:
+        yield
+    finally:
+        _request_context.policy = previous
 
 
 def request(
@@ -65,6 +80,13 @@ def request(
     try:
         if not url:
             return
+        policy = getattr(_request_context, 'policy', None)
+        if policy:
+            deadline, cancelled = policy
+            remaining = deadline - time.monotonic()
+            if remaining <= 0 or (cancelled and cancelled.is_set()):
+                return None
+            timeout = str(max(1, min(float(timeout), remaining)))
         _headers = {}
         if headers:
             _headers.update(headers)
@@ -73,70 +95,22 @@ def request(
             _headers.pop('verifypeer')
 
         handlers = []
-
         if proxy is not None:
-            handlers += [urllib_request.ProxyHandler(
-                {'http': '%s' % proxy}), urllib_request.HTTPHandler]
-            opener = urllib_request.build_opener(*handlers)
-            opener = urllib_request.install_opener(opener)
-
+            handlers.append(urllib_request.ProxyHandler({'http': proxy, 'https': proxy}))
         if params is not None:
             if isinstance(params, dict):
                 params = urllib_parse.urlencode(params)
-            url = url + '?' + params
-
+            url += ('&' if '?' in url else '?') + params
         if output == 'cookie' or output == 'extended' or not close:
             cookies = http_cookiejar.LWPCookieJar()
-            handlers += [urllib_request.HTTPHandler(),
-                         urllib_request.HTTPSHandler(),
-                         urllib_request.HTTPCookieProcessor(cookies)]
-            opener = urllib_request.build_opener(*handlers)
-            opener = urllib_request.install_opener(opener)
-
+            handlers.append(urllib_request.HTTPCookieProcessor(cookies))
         if output == 'elapsed':
             start_time = time.time() * 1000
-
-        try:
-            import platform
-            node = platform.uname()[1]
-        except BaseException:
-            node = ''
-
-        if verify is False and sys.version_info >= (2, 7, 12):
-            try:
-                import ssl
-                ssl_context = ssl._create_unverified_context()
-                ssl._create_default_https_context = ssl._create_unverified_context
-                ssl_context.set_alpn_protocols(['http/1.1'])
-                handlers += [urllib_request.HTTPSHandler(context=ssl_context)]
-                opener = urllib_request.build_opener(*handlers)
-                opener = urllib_request.install_opener(opener)
-            except BaseException:
-                pass
-
-        if verify and ((2, 7, 8) < sys.version_info < (2, 7, 12)
-                       or node == 'XboxOne'):
-            try:
-                import ssl
-                ssl_context = ssl.create_default_context()
-                ssl_context.check_hostname = False
-                ssl_context.verify_mode = ssl.CERT_NONE
-                ssl_context.set_alpn_protocols(['http/1.1'])
-                handlers += [urllib_request.HTTPSHandler(context=ssl_context)]
-                opener = urllib_request.build_opener(*handlers)
-                opener = urllib_request.install_opener(opener)
-            except BaseException:
-                pass
-        else:
-            try:
-                import ssl
-                ssl_context = ssl.create_default_context(cafile=CERT_FILE)
-                ssl_context.set_alpn_protocols(['http/1.1'])
-                handlers += [urllib_request.HTTPSHandler(context=ssl_context)]
-                opener = urllib_request.build_opener(*handlers)
-                opener = urllib_request.install_opener(opener)
-            except BaseException:
-                pass
+        import ssl
+        ssl_context = ssl.create_default_context(cafile=CERT_FILE) if verify else ssl._create_unverified_context()
+        ssl_context.set_alpn_protocols(['http/1.1'])
+        handlers.append(urllib_request.HTTPSHandler(context=ssl_context))
+        opener = urllib_request.build_opener(*handlers)
 
         if url.startswith('//'):
             url = 'http:' + url
@@ -188,18 +162,14 @@ def request(
         if redirect is False:
             class NoRedirectHandler(urllib_request.HTTPRedirectHandler):
                 def http_error_302(self, req, fp, code, msg, headers):
-                    infourl = urllib_response.addinfourl(fp, headers, req.get_full_url())
-                    if sys.version_info < (3, 9, 0):
-                        infourl.status = code
-                        infourl.code = code
+                    infourl = urllib_response.addinfourl(fp, headers, req.get_full_url(), code=code)
                     return infourl
                 http_error_300 = http_error_302
                 http_error_301 = http_error_302
                 http_error_303 = http_error_302
                 http_error_307 = http_error_302
 
-            opener = urllib_request.build_opener(NoRedirectHandler())
-            urllib_request.install_opener(opener)
+            opener = urllib_request.build_opener(*(handlers + [NoRedirectHandler()]))
 
             try:
                 del _headers['Referer']
@@ -238,7 +208,7 @@ def request(
         _add_request_header(req, _headers)
 
         try:
-            response = urllib_request.urlopen(req, timeout=int(timeout))
+            response = opener.open(req, timeout=float(timeout))
         except urllib_error.HTTPError as e:
             if error is True:
                 response = e
@@ -251,7 +221,7 @@ def request(
                 else:
                     result = e.read()
                 result = result.decode('latin-1', errors='ignore') if six.PY3 else result.encode('utf-8')
-                server = e.info().getheader('Server') if six.PY2 else e.info().get('Server')
+                server = (e.info().getheader('Server') if six.PY2 else e.info().get('Server')) or ''
                 if 'cloudflare' in server.lower():
                     if e.code == 403 and not e.info().get('cf-mitigated', False):
                         import ssl
@@ -298,7 +268,7 @@ def request(
                             _headers['User-Agent'] = cf_ua
                             req = urllib_request.Request(url, data=post)
                             _add_request_header(req, _headers)
-                            response = urllib_request.urlopen(req, timeout=int(timeout))
+                            response = opener.open(req, timeout=float(timeout))
                         else:
                             control.log('%s has a Cloudflare challenge.' % (netloc))
                             if not error:
@@ -307,7 +277,7 @@ def request(
                         if not error:
                             return ''
                 else:
-                    control.log('Request-Error (%s): %s' % (response.code, url))
+                    control.log('Request failed (%s): %s' % (e.code, urllib_parse.urlsplit(url).hostname))
                     if not error:
                         return ''
         except urllib_error.URLError:
@@ -413,7 +383,7 @@ def request(
                 request = urllib_request.Request(url, data=post)
                 _add_request_header(request, _headers)
 
-                response = urllib_request.urlopen(request, timeout=int(timeout))
+                response = opener.open(request, timeout=float(timeout))
 
                 if limit == '0':
                     result = response.read(224 * 1024)

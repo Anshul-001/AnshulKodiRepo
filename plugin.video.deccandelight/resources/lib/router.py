@@ -39,7 +39,7 @@ def routing(paramstring):
     # params = dict(urllib_parse.parse_qsl(paramstring))
     # # Check the parameters passed to the plugin
 
-    params = dict(urllib_parse.parse_qsl(paramstring.replace('?', '')))
+    params = dict(urllib_parse.parse_qsl(paramstring.lstrip('?')))
     # logger(f'routing params>>>> {params}')
     try:
         _dispatch(params)
@@ -52,6 +52,11 @@ def routing(paramstring):
         if site:
             msg = '{0}: {1}'.format(site, msg)
         control.notify(msg)
+        if params.get('action') in ('9', '14'):
+            from resources.lib.deccandelight import make_listitem
+            control.setResolvedUrl(control._handle, False, make_listitem())
+        elif params.get('action') in ('1','4','5','6','7','8','13','15','16','20','21'):
+            control.eod(control._handle, succeeded=False)
 
 
 def _dispatch(params):
@@ -80,7 +85,7 @@ def _dispatch(params):
             list_videos(params['site'], params['title'], params['iurl'], params['thumb'])
         elif action == '9':
             from resources.lib.deccandelight import play_video
-            play_video(params['iurl'])
+            play_video(params['iurl'], title=params.get('title'))
         elif action == '10':
             from resources.lib.deccandelight import play_video
             play_video(params['iurl'], dl=True)
@@ -93,6 +98,33 @@ def _dispatch(params):
         elif action == '13':
             from resources.lib.deccandelight import global_search
             global_search()
+        elif action == '14':
+            from resources.lib.experience import smart_play
+            smart_play(params['site'], params.get('title', 'Unknown'), params['iurl'], params.get('thumb', ''))
+        elif action == '15':
+            from resources.lib.experience import source_list
+            source_list(params.get('group', 'all'))
+        elif action == '16':
+            from resources.lib.experience import list_collection
+            list_collection(params.get('kind', 'watchlist'))
+        elif action in ('17', '18', '19'):
+            from resources.lib.experience import change_collection
+            change_collection(params)
+        elif action == '20':
+            from resources.lib.experience import tools
+            tools()
+        elif action == '21':
+            from resources.lib.experience import availability
+            availability()
+        elif action == '22':
+            from resources.lib.experience import source_status
+            source_status(params['site'])
+        elif action == '23':
+            from resources.lib.experience import refresh
+            refresh(params['site'])
+        elif action == '25':
+            from resources.lib import control
+            control._addon.openSettings()
     else:
         from resources.lib.deccandelight import list_sites
         list_sites()

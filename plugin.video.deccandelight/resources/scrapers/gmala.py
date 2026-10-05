@@ -20,6 +20,7 @@ import re
 from bs4 import BeautifulSoup, SoupStrainer
 from resources.lib import client
 from resources.lib.base import Scraper
+from resources.lib.htmlutils import absolute, append_next, document, thumbnail
 from six.moves import urllib_parse
 
 
@@ -40,121 +41,70 @@ class gmala(Scraper):
         return (self.list, 4, self.icon)
 
     def get_top(self, iurl):
-        """
-        Get the list of Categories.
-        :return: list
-        """
         categories = []
-        url = iurl.split('ZZZZ')[0]
-        category = iurl.split('ZZZZ')[1]
-        html = client.request(url)
-        mlink = SoupStrainer('td', {'class': re.compile('^h20')})
-        items = BeautifulSoup(html, "html.parser", parse_only=mlink)
-        for item in items:
-            if category in item.span.text:
-                letters = item.find_all('a')
-                for letter in letters:
-                    title = letter.text
-                    url = self.bu + letter.get('href')
-                    categories.append((title, self.icon, url))
-
+        url, category = iurl.split('ZZZZ', 1)
+        soup = document(client.request(url))
+        path = '/singer/' if category == 'Singer' else '/movie/'
+        seen = set()
+        for link in soup.find_all('a', href=True):
+            target = absolute(self.bu, link.get('href'))
+            parsed = urllib_parse.urlsplit(target)
+            label = link.get_text(' ', strip=True)
+            if not parsed.path.startswith(path) or not parsed.path.endswith('.php'):
+                continue
+            year = bool(re.match(r'^\d{4}$', label))
+            if category == 'Yearwise' and not year:
+                continue
+            if category != 'Yearwise' and (year or len(label) > 3):
+                continue
+            if target and target not in seen:
+                seen.add(target)
+                categories.append((label, self.icon, target))
         return (categories, 5)
 
-    def get_second(self, iurl):
-        """
-        Get the list of categories.
-        :return: list
-        """
+    def get_second(self, url):
         categories = []
-        html = client.request(iurl)
-
-        mlink = SoupStrainer('table', {'class': re.compile('alcen$')})
-        itemclass = BeautifulSoup(html, "html.parser", parse_only=mlink)
-        items = itemclass.find_all('td', {'class': 'w25p h150'})
-        for item in items:
-            title = item.text.strip()
-            url = self.bu + item.find('a').get('href')
-            icon = item.find('img').get('src') if item.find('img') else self.icon
-            categories.append((title, icon, url))
-
-        plink = SoupStrainer('td', {'class': re.compile(r'vatop\s*w140$')})
-        Paginator = BeautifulSoup(html, "html.parser", parse_only=plink)
-        if 'next' in str(Paginator):
-            ppath = Paginator.find('a').get('href')
-            if 'page' in ppath:
-                if ppath.startswith('/'):
-                    purl = self.bu + ppath
-                else:
-                    pparts = iurl.split('/')
-                    pparts[-1] = ppath
-                    purl = '/'.join(pparts)
-                pgtxt = re.findall('(Page.*?)"', html)[0]
-                if pgtxt.split()[1] != pgtxt.split()[3]:
-                    title = 'Next Page.. (Currently in {0})'.format(pgtxt)
-                    categories.append((title, self.nicon, purl))
-        else:
-            plink = SoupStrainer('ul', {'class': 'pagination'})
-            Paginator = BeautifulSoup(html, "html.parser", parse_only=plink)
-            s = re.search(r'<li\s*class="disabled"><a\s*href.+?>&gt', str(Paginator))
-            if not s:
-                ppath = Paginator.find_all('a')[-1].get('href')
-                purl = urllib_parse.urljoin(self.bu, ppath)
-                pgtxt = Paginator.find_all('li', {'class': 'active'})[-1].text
-                title = 'Next Page.. (Currently in Page {0})'.format(pgtxt)
-                categories.append((title, self.nicon, purl))
-
+        soup = document(client.request(url))
+        seen = set()
+        for item in soup.select('div.thumb-item, td.w25p.h150'):
+            link = item.find('a', href=True)
+            if not link:
+                continue
+            target = absolute(url, link.get('href'))
+            label = item.select_one('.thumb-caption') or item
+            title = label.get_text(' ', strip=True) or link.get('title', '')
+            if target and title and target not in seen:
+                seen.add(target)
+                categories.append((title, thumbnail(item, url, self.icon), target))
+        if not categories:
+            for link in soup.select('a[href*="/movie/"]'):
+                target = absolute(url, link.get('href'))
+                title = link.get_text(' ', strip=True)
+                if target and urllib_parse.urlsplit(target).path.endswith('.htm') and title and target not in seen:
+                    seen.add(target)
+                    categories.append((title, self.icon, target))
+        append_next(categories, soup, url, self.nicon)
         return (categories, 7)
 
-    def get_items(self, iurl):
+    def get_items(self, url):
         movies = []
-        if iurl[-7:] == '&value=':
-            search_text = self.get_SearchQuery('Hindi Geetmala')
-            search_text = urllib_parse.quote_plus(search_text)
-            iurl = iurl + search_text
-        nextpg = True
-        while len(movies) < 50 and nextpg:
-            html = client.request(iurl)
-            mlink = SoupStrainer('table', {'class': 'w760', 'itemtype': None})
-            mdiv = BeautifulSoup(html, "html.parser", parse_only=mlink)
-            items = mdiv.find_all('table', {'class': re.compile('allef$')})
-            for item in items:
-                albumdiv = item.find('span', {'itemprop': 'inAlbum'})
-                title = '[COLOR cyan]{0}:[/COLOR] '.format(albumdiv.find('span').text) if albumdiv else ''
-                title += item.find('span', {'itemprop': 'name'}).text
-                itemdiv = item.find('td', {'class': 'w105 vatop'})
-                url = self.bu + itemdiv.find('a').get('href')
-                icon = self.bu + itemdiv.find('img').get('src')
-                movies.append((title, icon, url))
-
-            plink = SoupStrainer('ul', {'class': 'pagination'})
-            Paginator = BeautifulSoup(html, "html.parser", parse_only=plink)
-            s = re.search(r'<li\s*class="disabled"><a\s*href.+?>&gt', str(Paginator))
-            if not s:
-                ppath = Paginator.find_all('a')[-1].get('href')
-                if 'page' in ppath:
-                    iurl = urllib_parse.urljoin(self.bu, ppath)
-                else:
-                    nextpg = False
-            else:
-                nextpg = False
-
-        if nextpg:
-            pgtxt = Paginator.find_all('li', {'class': 'active'})[-1].text
-            title = 'Next Page.. (Currently in Page {0})'.format(pgtxt)
-            movies.append((title, self.nicon, iurl))
-
+        if url.endswith('&value='):
+            url += urllib_parse.quote_plus(self.get_SearchQuery('Hindi Geetmala'))
+        soup = document(client.request(url))
+        seen = set()
+        for link in soup.select('a[href*="/song/"]'):
+            target = absolute(url, link.get('href'))
+            title = link.get_text(' ', strip=True) or link.get('title', '')
+            if target and title and target not in seen:
+                seen.add(target)
+                movies.append((title, thumbnail(link.parent, url, self.icon), target))
+        append_next(movies, soup, url, self.nicon)
         return (movies, 9)
 
     def get_video(self, url):
-        html = client.request(url)
-        mlink = SoupStrainer('table', {'class': 'b1 w760 alcen'})
-        videoclass = BeautifulSoup(html, "html.parser", parse_only=mlink)
-
-        if videoclass.find('iframe'):
-            vidurl = videoclass.find('iframe').get('src')
-        elif videoclass.find('a'):
-            vidurl = videoclass.find('a').get('href')
-        else:
-            vidurl = ''
-
-        return vidurl
+        soup = document(client.request(url))
+        for item in soup.select('iframe[src], iframe[data-src], a[href*="youtube.com"], a[href*="youtu.be"]'):
+            target = absolute(url, item.get('src') or item.get('data-src') or item.get('href'))
+            if target and any(host in target for host in ('youtube.com/', 'youtu.be/', 'dailymotion.com/')):
+                return target
+        return ''

@@ -21,6 +21,7 @@ import re
 from bs4 import BeautifulSoup, SoupStrainer
 from resources.lib import control, client
 from resources.lib.base import Scraper
+from resources.lib.htmlutils import absolute, append_next, document, thumbnail
 from six.moves import urllib_parse
 
 
@@ -31,59 +32,76 @@ class tgun(Scraper):
         self.icon = self.ipath + 'tgun.png'
 
     def get_menu(self):
-        html = client.request(self.bu)
+        soup = document(client.request(self.bu))
         items = {}
-        cats = re.findall(r'<li\s*id="menu[^>].+?href="([^"]+?category[^"]+)">([^<]+)', html)
-        sno = 1
-        for url, title in cats:
-            title = self.unescape(title)
-            title = title.encode('utf8') if self.PY2 else title
-            items['{:02d}'.format(sno) + title] = url
-            sno += 1
-        items['{:02d}'.format(sno) + 'Special TV Shows'] = self.bu + '/video-category/special-tv-shows/'
+        seen = set()
+        links = soup.select('a.cat-btn[href], li[id^="menu"] a[href*="category"]')
+        for link in links:
+            url = absolute(self.bu + '/', link.get('href'))
+            title = self.unescape(link.get_text(' ', strip=True))
+            if not url or url in seen or title.lower() == 'home':
+                continue
+            seen.add(url)
+            items['{:02d}{}'.format(len(items) + 1, title)] = url
         items['99[COLOR yellow]** Search **[/COLOR]'] = self.bu + '/?s='
         return (items, 7, self.icon)
 
     def get_items(self, url):
         movies = []
-        if url[-3:] == '?s=':
-            search_text = self.get_SearchQuery('Tamil Gun')
-            search_text = urllib_parse.quote_plus(search_text)
-            url = url + search_text
-
-        html = client.request(url)
-        mlink = SoupStrainer('article', {'class': re.compile('video')})
-        mdiv = BeautifulSoup(html, "html.parser", parse_only=mlink)
-
-        plink = SoupStrainer('div', {'class': 'wp-pagenavi'})
-        Paginator = BeautifulSoup(html, "html.parser", parse_only=plink)
-
-        for item in mdiv:
-            title = self.unescape(item.h3.text).strip()
-            title = title.encode('utf8') if self.PY2 else title
-            title = title.replace(' HDTV', '').replace(' HD', '')
-            iurl = item.h3.find('a')['href']
+        if url.endswith('?s='):
+            url += urllib_parse.quote_plus(self.get_SearchQuery('Tamil Gun'))
+        soup = document(client.request(url))
+        seen = set()
+        for item in soup.select('div.image-item, article.video, article[class*="video"]'):
+            link = item.select_one('a.image-link[href], h3 a[href], a[href]')
+            heading = item.find('h3')
+            if not link:
+                continue
+            target = absolute(url, link.get('href'))
+            title = self.unescape(heading.get_text(' ', strip=True) if heading else link.get('title', link.get_text(' ', strip=True)))
+            if not target or not title or target in seen:
+                continue
+            seen.add(target)
             if 'all episodes' in title.lower():
-                iurl = iurl + 'MMMM7'
-            try:
-                thumb = item.find('img').get('src').strip()
-                cpath = urllib_parse.urlparse(thumb).netloc
-                if control.pathExists(control.TRANSLATEPATH(control._ppath) + cpath + '.json'):
-                    cfhdrs = json.loads(client.retrieve(cpath + '.json'))
-                    thumb += '|{0}'.format(urllib_parse.urlencode(cfhdrs))
-            except:
-                thumb = self.icon
-
-            movies.append((title, thumb, iurl))
-
-        if 'rel="next"' in str(Paginator):
-            nextli = Paginator.find('a', {'class': 'nextpostslink'})
-            purl = nextli.get('href')
-            pgtxt = Paginator.find('span', {'class': 'pages'}).text
-            title = 'Next Page... (Currently in %s)' % (pgtxt)
-            movies.append((title, self.nicon, purl))
-
+                target += 'MMMM7'
+            movies.append((title, thumbnail(item, url, self.icon), target))
+        append_next(movies, soup, url, self.nicon)
         return (movies, 8)
+
+    def _public_player(self, url, videos):
+        parsed = urllib_parse.urlsplit(url)
+        if parsed.hostname != 'player4.spirituallifewell.com':
+            return False
+        match = re.match(r'^/videos/([0-9a-f-]+)$', parsed.path, re.I)
+        if not match:
+            return False
+        root = '{}://{}/'.format(parsed.scheme, parsed.netloc)
+        api = root + 'api/playback/resolve'
+        try:
+            raw = client.request(api, params={'contentType': 'video', 'videoId': match.group(1)},
+                                 headers={'Referer': url, 'User-Agent': self.hdr.get('User-Agent', '')})
+            data = json.loads(raw or '{}')
+        except (TypeError, ValueError):
+            return True
+        if not isinstance(data, dict):
+            return True
+        options = data.get('playbackOptions') or [{'sourceUrl': data.get('sourceUrl'),
+                                                   'isEmbed': data.get('selectedServerIsEmbed')}]
+        seen = set()
+        for option in options:
+            if not isinstance(option, dict):
+                continue
+            source = absolute(root, option.get('sourceUrl'))
+            if not source or source in seen:
+                continue
+            seen.add(source)
+            label = 'TamilGun ' + (option.get('label') or 'Direct')
+            if option.get('isEmbed'):
+                self.resolve_media(source, videos, label)
+            elif urllib_parse.urlsplit(source).path.lower().endswith(('.m3u8', '.mp4')):
+                headers = urllib_parse.urlencode({'Referer': root, 'User-Agent': self.hdr.get('User-Agent', '')})
+                videos.append((label, source + '|' + headers))
+        return True
 
     def get_videos(self, url):
         videos = []
@@ -95,7 +113,7 @@ class tgun(Scraper):
             self.resolve_media(url, videos)
             return videos
 
-        html = client.request(url)
+        html = client.request(url) or ''
 
         r = re.findall(r"unescape\('([^']+)", html)
         if r:
@@ -111,7 +129,11 @@ class tgun(Scraper):
         try:
             links = videoclass.find_all('iframe')
             for link in links:
-                iurl = link.get('src')
+                iurl = absolute(url, link.get('src'))
+                if not iurl:
+                    continue
+                if self._public_player(iurl, videos):
+                    continue
                 if 'playallu.' in iurl:
                     vidhost, strlink = self.playallu(iurl, self.bu)
                     if vidhost is not None:
@@ -147,7 +169,7 @@ class tgun(Scraper):
                 else:
                     iurl = link.get('onclick').split("'")[1]
                 if iurl.startswith('//'):
-                    iurl = 'https:' + url
+                    iurl = 'https:' + iurl
                 self.resolve_media(iurl, videos)
         except:
             pass
@@ -233,7 +255,7 @@ class tgun(Scraper):
                     s = re.search(r'urlStream":"([^"]+)', ihtml)
                     if s:
                         ref = urllib_parse.urljoin(iurl, '/')
-                        headers = {'User-Agent': self.hdr, 'Referer': ref, 'Origin': ref[:-1]}
+                        headers = {'User-Agent': self.hdr.get('User-Agent', ''), 'Referer': ref, 'Origin': ref[:-1]}
                         strlink = s.group(1) + '|{}'.format(urllib_parse.urlencode(headers))
                         videos.append(('player3', strlink))
                 else:

@@ -17,19 +17,22 @@
 """
 
 import re
+import threading
 from resources.lib import tmdb
 
-metaget = tmdb.TMDB()
+_workers = threading.local()
 
 
 def get_meta(title):
     year = ''
     name = title
-    r = re.search(r'[([](\d+)[)\]]', name)
+    r = re.search(r'[([]((?:19|20)\d{2})[)\]]', name)
     if r:
         year = r.group(1)
     name = re.sub(r"[([].+", "", name).strip()
-    meta = metaget.get_meta(name=name, year=year)
+    if not hasattr(_workers, 'metadata'):
+        _workers.metadata = tmdb.TMDB()
+    meta = _workers.metadata.get_meta(name=name, year=year) or {}
     if meta.get('tmdb_id'):
         imdb_id = meta.get('imdb_id')
         if not meta.get('trailer') and imdb_id:

@@ -18,7 +18,7 @@ class TMDB(object):
         self.tmdb_image_url = ''
         self.path = control._ppath
         self.metacache = control.TRANSLATEPATH(self.path + 'metacache.db')
-        self.url_prefix = 'http://api.themoviedb.org/3'
+        self.url_prefix = 'https://api.themoviedb.org/3'
 
         # Initialize DB
         self.DB = db_utils.DB_Connection(self.metacache)
