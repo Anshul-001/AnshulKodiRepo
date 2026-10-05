@@ -25,10 +25,10 @@
     ]
   },
   "gomovies": {
-    "probe": "category/tamil-movies/",
-    "marker": "loop-entry",
+    "probe": "genre/tamil/",
+    "marker": "ml-item",
     "mirrors": [
-      "https://ogomovies.org/"
+      "https://ogomovies.dev/"
     ]
   },
   "hflinks": {

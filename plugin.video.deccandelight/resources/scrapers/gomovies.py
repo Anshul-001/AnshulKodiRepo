@@ -16,102 +16,162 @@ You should have received a copy of the GNU General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
 '''
 import re
-from bs4 import BeautifulSoup, SoupStrainer
+import json
+from six.moves import urllib_parse
 from resources.lib import client
 from resources.lib.base import Scraper
-from six.moves import urllib_parse
+from resources.lib.htmlutils import absolute, append_next, document
 
 
 class gomovies(Scraper):
     def __init__(self):
         Scraper.__init__(self)
-        self.bu = self.resolve_domain('gomovies', ['https://ogomovies.org/'], 'category/tamil-movies/', 'loop-entry') + 'category/'
+        self.bu = self.resolve_domain('gomovies', ['https://ogomovies.dev/'], 'genre/tamil/', 'ml-item')
         self.icon = self.ipath + 'gomovies.png'
-
-        self.list = {'01Tamil Movies': self.bu + 'tamil-movies/',
-                     '02Telugu Movies': self.bu + 'telugu-movies/',
-                     '03Malayalam Movies': self.bu + 'malayalam-movies/',
-                     '04Kannada Movies': self.bu + 'kannada-movies/',
-                     '05Hindi Movies': self.bu + 'bollywood-movies/',
-                     '06Punjabi Movies': self.bu + 'punjabi-movies/',
-                     '07Multi Audio Movies': self.bu + 'multi-language-movies/',
-                     '08Hollywood': self.bu + 'hollywood-movies/',
-                     '09Hindi Dubbed': self.bu + 'hindi-dubbed-movies/',
-                     '10Dual Audio': self.bu + 'dual-audio/',
-                     '11South Indian': self.bu + 'south-indian-movies/',
-                     '12Netflix Movies': self.bu + 'netflix-movies/',
-                     '50Web Series': self.bu + 'web-series/',
-                     '51TV Shows': self.bu + 'tv-shows/',
-                     '99[COLOR yellow]** Search **[/COLOR]': self.bu[:-9] + '?s='}
+        self.list = {'01Tamil Movies': self.bu + 'genre/tamil/',
+                     '02Telugu Movies': self.bu + 'genre/telugu/',
+                     '03Malayalam Movies': self.bu + 'genre/malayalam-movies/',
+                     '04Hindi Movies': self.bu + 'genre/bollywood/',
+                     '05Hollywood': self.bu + 'genre/hollywood/'}
 
     def get_menu(self):
-        return (self.list, 7, self.icon)
+        soup = document(client.request(self.bu))
+        items, seen = {}, set()
+        for link in soup.select('#menu a[href], .top-menu a[href]'):
+            url = absolute(self.bu, link.get('href'))
+            parsed = urllib_parse.urlsplit(url)
+            if parsed.netloc != urllib_parse.urlsplit(self.bu).netloc or not parsed.path.startswith('/genre/'):
+                continue
+            # Current navigation contains duplicate trailing slashes.
+            url = urllib_parse.urlunsplit(parsed._replace(path=re.sub(r'/+', '/', parsed.path), fragment=''))
+            title = link.get_text(' ', strip=True)
+            if not title or url in seen:
+                continue
+            seen.add(url)
+            items['%02d%s' % (len(items) + 1, title)] = url
+        if not items:
+            items = dict(self.list)
+        items['99[COLOR yellow]** Search **[/COLOR]'] = self.bu + '?s='
+        return items, 7, self.icon
 
     def get_items(self, url):
-        movies = []
-        if url[-3:] == '?s=':
-            search_text = self.get_SearchQuery('GoMovies')
-            search_text = urllib_parse.quote_plus(search_text)
-            url = url + search_text
-
-        html = client.request(url, verify=False)
-        mlink = SoupStrainer('article', {'class': re.compile('loop-entry')})
-        mdiv = BeautifulSoup(html, "html.parser", parse_only=mlink)
-        plink = SoupStrainer('div', {'class': 'nav-links'})
-        Paginator = BeautifulSoup(html, "html.parser", parse_only=plink)
-        items = mdiv.find_all('article')
-
-        for item in items:
-            hdr = item.find(['h1', 'h2', 'h3'], {'class': 'entry-title'})
-            if not hdr or not hdr.find('a'):
+        if url.endswith('?s='):
+            return self._search(self.get_SearchQuery('0GoMovies').strip()), 8
+        soup = document(client.request(url))
+        movies, seen = [], set()
+        listing = soup.select_one('.movies-list-full')
+        cards = listing.select('.ml-item') if listing else soup.select('.ml-item, article.loop-entry')
+        for item in cards:
+            link = item.select_one('a.ml-mask[href], .entry-title a[href]')
+            if not link:
                 continue
-            link = hdr.find('a')
-            title = self.unescape(link.text).strip()
-            title = title.encode('utf-8') if self.PY2 else title
-            iurl = link['href']
+            target = absolute(url, link.get('href'))
+            heading = item.find(['h1', 'h2', 'h3'])
+            title = link.get('oldtitle') or link.get('title') or (heading.get_text(' ', strip=True) if heading else '')
+            if not target or not title or target in seen:
+                continue
+            seen.add(target)
+            img = item.find('img')
+            raw = (img.get('data-original') or img.get('data-src') or img.get('src')) if img else ''
+            if not raw or raw.startswith('data:'):
+                srcset = (img.get('data-srcset') or img.get('srcset') or '') if img else ''
+                raw = srcset.split(' ')[0]
+            thumb = absolute(url, raw) or self.icon
+            if urllib_parse.urlsplit(target).path.startswith('/tv/'):
+                target += 'MMMM6'
+            movies.append((self.clean_title(title), thumb, target))
+        append_next(movies, soup, url, self.nicon)
+        return movies, 8
 
-            try:
-                img = item.find('img')
-                thumb = img.get('data-src') or img.get('src')
-                if not thumb or thumb.startswith('data:'):
-                    srcset = img.get('data-srcset') or img.get('srcset') or ''
-                    thumb = srcset.split(' ')[0] if srcset else self.icon
-            except:
-                thumb = self.icon
+    def _search(self, query):
+        if not query:
+            return []
+        raw = client.request(self.bu + 'wp-admin/admin-ajax.php',
+                             params={'action': 'search_suggestions', 'keyword': query},
+                             headers={'Referer': self.bu})
+        try:
+            payload = json.loads(raw or '{}')
+            html = payload.get('content', '') if isinstance(payload, dict) else ''
+        except (TypeError, ValueError):
+            return []
+        if not isinstance(html, str):
+            return []
+        items, seen = [], set()
+        for item in document(html).select('li'):
+            link = item.select_one('a.ss-title[href]')
+            if not link:
+                continue
+            target = absolute(self.bu, link.get('href'))
+            title = link.get_text(' ', strip=True)
+            if not target or not title or target in seen:
+                continue
+            seen.add(target)
+            image = item.select_one('a.thumb')
+            match = re.search(r'url\((.*?)\)', image.get('style', '')) if image else None
+            thumb = absolute(self.bu, match.group(1).strip('\"\'')) if match else self.icon
+            if urllib_parse.urlsplit(target).path.startswith('/tv/'):
+                target += 'MMMM6'
+            items.append((title, thumb or self.icon, target))
+        return items
 
-            movies.append((title, thumb, iurl))
+    def _watch_page(self, url):
+        soup = document(client.request(url))
+        parsed = urllib_parse.urlsplit(url)
+        expected = parsed.path.rstrip('/') + '/watching'
+        for link in soup.select('a[href]'):
+            target = absolute(url, link.get('href'))
+            candidate = urllib_parse.urlsplit(target)
+            if candidate.netloc == parsed.netloc and candidate.path.rstrip('/') == expected:
+                return document(client.request(target)), target
+        return soup, url
 
-        nextli = Paginator.find('a', {'class': 'next'})
-        if nextli and nextli.get('href'):
-            purl = nextli['href']
-            currpg = Paginator.find('span', {'class': 'current'})
-            currpg = currpg.text.strip() if currpg else '1'
-            title = 'Next Page.. (Currently in Page {})'.format(currpg)
-            movies.append((title, self.nicon, purl))
-
-        return (movies, 8)
+    def get_third(self, url):
+        soup, watching = self._watch_page(url)
+        parsed = urllib_parse.urlsplit(watching)
+        rows, seen = [], set()
+        for node in soup.select('.episode-item[id]'):
+            match = re.fullmatch(r'episode-(\d+)', node.get('id', ''))
+            if not match or match.group(1) in seen:
+                continue
+            seen.add(match.group(1))
+            link = node.find('a')
+            title = (link.get('title') if link else '') or node.get_text(' ', strip=True)
+            query = dict(urllib_parse.parse_qsl(parsed.query))
+            query['episode_id'] = match.group(1)
+            target = urllib_parse.urlunsplit(parsed._replace(query=urllib_parse.urlencode(query)))
+            rows.append((title.strip(), self.icon, target))
+        def order(row):
+            number = re.search(r'Episode\s*(\d+)', row[0], re.I)
+            return int(number.group(1)) if number else 0
+        rows.sort(key=order)
+        return rows, 8
 
     def get_videos(self, url):
-        videos = []
-        html = client.request(url, verify=False)
-        mlink = SoupStrainer('div', {'class': re.compile('entry-content')})
-        videoclass = BeautifulSoup(html, "html.parser", parse_only=mlink)
-
-        links = videoclass.find_all('a', href=True)
-        for link in links:
-            iurl = link['href']
-            if self.bu[:-9] in iurl or 'np-downloader' in iurl or iurl.endswith('.srt'):
+        # Follow only this title's public watching page, including series
+        # query parameters. Never use trailers or related titles as servers.
+        soup, url = self._watch_page(url)
+        episode = dict(urllib_parse.parse_qsl(urllib_parse.urlsplit(url).query)).get('episode_id')
+        targets, seen = [], set()
+        for node in soup.select('.episode-item'):
+            if episode and node.get('id') != 'episode-' + episode:
                 continue
-            self.resolve_media(iurl, videos)
-
-        try:
-            for frame in videoclass.find_all('iframe'):
-                iurl = frame.get('src') or frame.get('data-src') or frame.get('data-litespeed-src')
-                if iurl:
-                    if iurl.startswith('//'):
-                        iurl = 'https:' + iurl
-                    self.resolve_media(iurl, videos)
-        except:
-            pass
-
+            for key in ('data-drive', 'data-openload', 'data-streamgo', 'data-putload'):
+                target = absolute(url, node.get(key))
+                if target and target not in seen:
+                    seen.add(target)
+                    targets.append((node.get_text(' ', strip=True), target))
+        for node in soup.select('#iframe-embed, .entry-content iframe, #player2 iframe'):
+            target = absolute(url, node.get('src') or node.get('data-src') or node.get('data-litespeed-src'))
+            if target and target not in seen:
+                seen.add(target)
+                targets.append(('', target))
+        for link in soup.select('.entry-content a[href]'):
+            target = absolute(url, link.get('href'))
+            if (target and target not in seen and urllib_parse.urlsplit(target).netloc != urllib_parse.urlsplit(self.bu).netloc
+                    and 'np-downloader' not in target and not urllib_parse.urlsplit(target).path.endswith('.srt')):
+                seen.add(target)
+                targets.append(('', target))
+        videos = []
+        for label, target in targets:
+            self.resolve_media(target, videos, label)
         return videos

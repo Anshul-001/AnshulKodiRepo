@@ -51,6 +51,107 @@ class ParserTests(unittest.TestCase):
         module = importlib.import_module('resources.scrapers.' + name)
         return getattr(module, name)()
 
+    def test_ogomovies_current_menu_uses_real_genres_and_deduplicates(self):
+        obj = self.scraper('gomovies')
+        self.pages[obj.bu] = '''<div id="menu"><a href="/genre/tamil//">Tamil</a>
+          <a href="/genre/tamil/">Tamil duplicate</a><a href="/genre/telugu/">Telugu</a>
+          <a href="https://ads.example/genre/ad/">Ad</a><a href="#">Other</a></div>'''
+        menu, mode, _ = obj.get_menu()
+        self.assertEqual(mode, 7)
+        self.assertEqual([u for k,u in menu.items() if 'Search' not in k],
+                         [obj.bu+'genre/tamil/', obj.bu+'genre/telugu/'])
+        self.assertNotIn('category/', ''.join(menu.values()))
+
+    def test_ogomovies_current_cards_lazy_art_pagination_and_duplicates(self):
+        obj = self.scraper('gomovies');url=obj.bu+'genre/tamil/'
+        card = '<div class="ml-item"><a class="ml-mask" href="/movie/example/" oldtitle="Example &amp; More"><img src="data:image/gif;base64,blank" data-original="/poster.jpg"><h2>Example</h2></a></div>'
+        self.pages[url] = card + card + '''<div id="pagination"><ul class="pagination">
+          <li><span class="active">1</span></li><li><a href="/genre/tamil/page/2/">2</a></li>
+          <li><a href="/genre/tamil/page/2/">Next →</a></li><li><a href="/genre/tamil/page/26/">»</a></li></ul></div>'''
+        items, mode=obj.get_items(url)
+        self.assertEqual(mode,8)
+        self.assertEqual(items[0],('Example & More',obj.bu+'poster.jpg',obj.bu+'movie/example/'))
+        self.assertEqual(len(items),2)
+        self.assertEqual(items[-1][2],obj.bu+'genre/tamil/page/2/')
+
+    def test_ogomovies_search_uses_public_suggestions_not_homepage_fallback(self):
+        obj=self.scraper('gomovies');obj.get_SearchQuery=lambda name:'Vikram Vedha'
+        target=obj.bu+'wp-admin/admin-ajax.php'
+        self.pages[target]=json.dumps({'content':"<ul><li><a class='thumb' style='background-image: url(/poster.jpg)'></a><a class='ss-title' href='/movie/vikram-vedha/'>Vikram Vedha</a><a class='category' href='/genre/action/'>Action</a></li></ul>"})
+        items,mode=obj.get_items(obj.bu+'?s=')
+        self.assertEqual(items,[('Vikram Vedha',obj.bu+'poster.jpg',obj.bu+'movie/vikram-vedha/')])
+        self.assertEqual(self.calls[0][0],target)
+        self.assertEqual(self.calls[0][1]['params'],{'action':'search_suggestions','keyword':'Vikram Vedha'})
+
+    def test_ogomovies_search_invalid_response_is_empty(self):
+        obj=self.scraper('gomovies');obj.get_SearchQuery=lambda name:'Vikram'
+        for raw in ['<html>homepage</html>','[]','{}',json.dumps({'content':None}),json.dumps({'content':[]})]:
+            self.pages[obj.bu+'wp-admin/admin-ajax.php']=raw
+            self.assertEqual(obj.get_items(obj.bu+'?s='),([],8))
+
+    def test_ogomovies_category_excludes_recommended_titles_outside_listing(self):
+        obj=self.scraper('gomovies');url=obj.bu+'genre/punjabi/'
+        self.pages[url]='<div class="ml-item"><a class="ml-mask" href="/movie/wrong/" title="Recommended Telugu"></a></div><div class="movies-list movies-list-full"><div class="ml-item"><a class="ml-mask" href="/movie/punjabi/" title="Punjabi Movie"></a></div></div>'
+        items,mode=obj.get_items(url)
+        self.assertEqual([i[0] for i in items],['Punjabi Movie'])
+
+    def test_ogomovies_legacy_cards_still_parse(self):
+        obj=self.scraper('gomovies');url=obj.bu+'category/tamil-movies/'
+        self.pages[url]='<article class="loop-entry"><h2 class="entry-title"><a href="/old/">Old (2025)</a></h2><img data-src="//cdn.example/old.jpg"></article>'
+        items,mode=obj.get_items(url)
+        self.assertEqual(items,[('Old (2025)','https://cdn.example/old.jpg',obj.bu+'old/')])
+
+    def test_ogomovies_follows_own_watching_page_and_public_servers(self):
+        obj=self.scraper('gomovies');url=obj.bu+'movie/example/';watch=url+'watching/'
+        self.pages[url]='<a href="watching/">Play</a><iframe id="iframe-trailer" src="https://youtube.example/trailer"></iframe>'
+        self.pages[watch]='''<li class="episode-item" data-drive="https://morencius.com/embed/id">Player 1</li>
+          <li class="episode-item" data-openload="https://morencius.com/embed/id" data-putload="//other.example/embed/second">Player 2</li>
+          <iframe id="iframe-trailer" src="https://youtube.example/trailer"></iframe>'''
+        found=[];obj.resolve_media=lambda target,videos,*args:found.append(target)
+        obj.get_videos(url)
+        self.assertEqual(found,['https://morencius.com/embed/id','https://other.example/embed/second'])
+        self.assertIn((watch,{}),self.calls)
+
+    def test_ogomovies_does_not_follow_other_movies_or_external_watching(self):
+        obj=self.scraper('gomovies');url=obj.bu+'movie/example/'
+        self.pages[url]='<a href="/movie/related/watching/">Related</a><a href="https://ads.example/watching/">Ad</a>'
+        self.assertEqual(obj.get_videos(url),[])
+        self.assertEqual([u for u,_ in self.calls],[url])
+
+    def test_ogomovies_legacy_video_and_lazy_frame_servers_are_kept(self):
+        obj=self.scraper('gomovies');url=obj.bu+'movie/example/'
+        self.pages[url]='<div class="entry-content"><a href="/genre/tamil/">Category</a><a href="https://host.example/embed/1">Server</a><a href="https://host.example/sub.srt">Subtitles</a><iframe data-litespeed-src="//host.example/embed/2"></iframe></div>'
+        found=[];obj.resolve_media=lambda target,videos,*args:found.append(target)
+        obj.get_videos(url)
+        self.assertEqual(found,['https://host.example/embed/2','https://host.example/embed/1'])
+
+    def test_ogomovies_series_cards_open_episode_directory(self):
+        obj=self.scraper('gomovies');url=obj.bu+'genre/hindi-web-series/'
+        self.pages[url]='<div class="ml-item"><a class="ml-mask" href="/tv/show/" title="Show"></a></div>'
+        items,mode=obj.get_items(url)
+        self.assertEqual(items[0][2],obj.bu+'tv/show/MMMM6')
+
+    def test_ogomovies_series_lists_episodes_once_in_number_order(self):
+        obj=self.scraper('gomovies');url=obj.bu+'tv/show/';watch=url+'watching/?episode_id=100'
+        self.pages[url]='<a href="watching/?episode_id=100">View episodes</a>'
+        self.pages[watch]='<li class="episode-item" id="episode-200"><a title="Episode 2: Later"></a></li><li class="episode-item" id="episode-100"><a title="Episode 1: First"></a></li><li class="episode-item" id="episode-100"><a title="Episode 1: First"></a></li>'
+        items,mode=obj.get_third(url)
+        self.assertEqual(mode,8)
+        self.assertEqual([i[0] for i in items],['Episode 1: First','Episode 2: Later'])
+        self.assertEqual(items[1][2],url+'watching/?episode_id=200')
+
+    def test_ogomovies_resolves_only_selected_episode_servers(self):
+        obj=self.scraper('gomovies');url=obj.bu+'tv/show/watching/?episode_id=100'
+        self.pages[url]='<li class="episode-item" id="episode-200" data-drive="https://host.example/wrong"></li><li class="episode-item" id="episode-100" data-drive="https://host.example/first"></li><li class="episode-item" id="episode-100" data-openload="https://host.example/second"></li>'
+        found=[];obj.resolve_media=lambda target,videos,*args:found.append(target)
+        obj.get_videos(url)
+        self.assertEqual(found,['https://host.example/first','https://host.example/second'])
+
+    def test_ogomovies_missing_pages_do_not_crash_or_invent_media(self):
+        obj=self.scraper('gomovies')
+        self.assertEqual(obj.get_items(obj.bu+'genre/tamil/'),([],8))
+        self.assertEqual(obj.get_videos(obj.bu+'movie/missing/'),[])
+
     def test_tamilgun_cards_lazy_images_and_pagination(self):
         obj = self.scraper('tgun')
         url = obj.bu + '/video-category/hd-movies/'
