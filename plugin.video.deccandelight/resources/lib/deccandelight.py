@@ -17,18 +17,22 @@
 """
 
 import re
+import importlib
 import tempfile
 import time
 
 import six
-from resources.lib import cache, client, control
+from resources.lib import cache, client, control, experience, parallel, streams
 from resources.lib.base import Scraper, check_hosted_media
 from resources.scrapers import *  # NoQA
 from six.moves import urllib_parse, urllib_request
 
 
 _changelog = control._path + '/changelog.txt'
-cache_duration = float(control.get_setting('timeout'))
+try:
+    cache_duration = float(control.get_setting('timeout'))
+except (TypeError, ValueError):
+    cache_duration = 6
 
 msites = [
     'tgun', 'tamilian', 'tyogi', 'torm', 'hlinks',
@@ -49,12 +53,8 @@ def clear_cache():
 
 if control.get_setting('version') != control._version:
     control._addon.setSetting('version', control._version)
-    clear_cache()
-    heading = '[B][COLOR gold]Indian Movie Hub[/COLOR] - [COLOR white]Changelog[/COLOR][/B]'
-    with open(_changelog) as f:
-        announce = f.read()
-    dialog = control.Dialog()
-    dialog.textviewer(heading, announce)
+    cache.cache_clear()
+    control.notify('Updated to ' + control._version)
 
 sites = {
     '01tgun': 'Tamil Gun : [COLOR yellow]Tamil[/COLOR]',
@@ -69,32 +69,40 @@ sites = {
     # '44mghar': 'Movies Ghar : [COLOR magenta]Various[/COLOR]',
     # '45b2t': 'Bolly 2 Tolly : [COLOR magenta]Various[/COLOR]',
     '47wompk': 'Online Movies PK : [COLOR magenta]Various[/COLOR]',
-    '48gomovies': 'Go Movies : [COLOR magenta]Various[/COLOR]',
+    '48gomovies': '0GoMovies : [COLOR magenta]Various[/COLOR]',
     # '49cinevez': 'Cine Vez : [COLOR magenta]Various[/COLOR]',
     '50todaypk': 'TodayPk : [COLOR magenta]Various[/COLOR]',
     '51flinks': 'Film Links 4U : [COLOR magenta]Various[/COLOR]',
     '52dcine': 'Desi Cinemas : [COLOR magenta]Various[/COLOR]',
-    '53hflinks': 'Film Links 4U Pro : [COLOR magenta]Various[/COLOR]',
+    '53hflinks': 'HindiLinks4U Pro : [COLOR magenta]Various[/COLOR]',
     # '71ttvshow': 'Tamil TV Show: [COLOR yellow]Tamil Catchup TV[/COLOR]',
     # '72skytamil': 'sky Tamil: [COLOR yellow]Tamil Catchup TV[/COLOR]',
     # '73tdhool': 'Tamil Dhool : [COLOR yellow]Tamil Catchup TV[/COLOR]',
     # '77manatv': 'Mana Telugu : [COLOR yellow]Telugu Catchup TV[/COLOR]',
     # '81apnetv': 'Apne TV : [COLOR yellow]Hindi Catchup TV[/COLOR]',
     '82desiseri': 'Desi Serials : [COLOR yellow]Hindi Catchup TV[/COLOR]',
-    '83desit': 'Desi Tashan : [COLOR yellow]Hindi Catchup TV[/COLOR]',
+    '83desit': 'DesiTellyBox : [COLOR yellow]Hindi Catchup TV[/COLOR]',
     '84pdesi': 'Play Desi : [COLOR yellow]Hindi Catchup TV[/COLOR]',
     # '85sghar': 'Serial Ghar : [COLOR yellow]Hindi Catchup TV[/COLOR]',
     # '86wapne': 'Watch Apne : [COLOR yellow]Hindi Catchup TV[/COLOR]',
     '87yodesi': 'Yo Desi : [COLOR yellow]Hindi Catchup TV[/COLOR]',
-    '91ary': 'Ary Digital : [COLOR yellow]Urdu Catchup TV[/COLOR]',
+    '91ary': 'ARY Digital : [COLOR yellow]Urdu Catchup TV[/COLOR]',
     '92geo': 'Geo TV : [COLOR yellow]Urdu Catchup TV[/COLOR]',
-    '93hum': 'Hum TV : [COLOR yellow]Urdu Catchup TV[/COLOR]',
+    '93hum': 'HUM TV : [COLOR yellow]Urdu Catchup TV[/COLOR]',
     '99gmala': 'Hindi Geetmala : [COLOR yellow]Hindi Songs[/COLOR]'
 }
 
 # site code (without the 2-digit sort prefix) -> friendly name, for labelling
 # results in the merged global-search list
 sitenames = {k[2:]: v.split(' : ')[0].split(':')[0].strip() for k, v in sites.items()}
+
+
+def scraper_for(site):
+    from resources.scrapers import __all__
+    if site not in __all__:
+        raise ValueError('Unknown source')
+    module = importlib.import_module('resources.scrapers.' + site)
+    return getattr(module, site)()
 
 
 def make_listitem(*args, **kwargs):
@@ -106,6 +114,7 @@ def make_listitem(*args, **kwargs):
 
 
 def update_listitem(li, labels):
+    labels = dict(labels)
     cast2 = labels.pop('cast2') if 'cast2' in labels.keys() else []
     unique_ids = {}
     tmdb_id = labels.get('tmdb_id')
@@ -161,184 +170,85 @@ def update_listitem(li, labels):
 
 
 def list_sites():
-    """
-    Create the Sites menu in the Kodi interface.
-    """
-    listing = []
-
-    list_item = make_listitem(label='[COLOR lime][B]* Search All Sites *[/B][/COLOR]')
-    item_icon = control._ipath + 'ccache.png'
-    list_item.setArt({'thumb': item_icon,
-                      'icon': item_icon,
-                      'poster': item_icon,
-                      'fanart': control._fanart})
-    listing.append(('{0}?action=13'.format(control._url), list_item, True))
-
-    for site, title in sorted(six.iteritems(sites)):
-        if control.get_setting(site[2:]) == 'true':
-            item_icon = control._ipath + '{}.png'.format(site[2:])
-            list_item = make_listitem(label=title)
-            list_item.setArt({'thumb': item_icon,
-                              'icon': item_icon,
-                              'poster': item_icon,
-                              'fanart': control._fanart})
-            url = '{0}?action=1&site={1}'.format(control._url, site[2:])
-            is_folder = True
-            listing.append((url, list_item, is_folder))
-
-    list_item = make_listitem(label='[COLOR yellow][B]Clear Cache[/B][/COLOR]')
-    item_icon = control._ipath + 'ccache.png'
-    list_item.setArt({'thumb': item_icon,
-                      'icon': item_icon,
-                      'poster': item_icon,
-                      'fanart': control._fanart})
-    url = '{0}?action=0'.format(control._url)
-    is_folder = False
-    listing.append((url, list_item, is_folder))
-
-    list_item = make_listitem(label='[COLOR yellow][B]Clear MetaCache[/B][/COLOR]')
-    item_icon = control._ipath + 'ccache.png'
-    list_item.setArt({'thumb': item_icon,
-                      'icon': item_icon,
-                      'poster': item_icon,
-                      'fanart': control._fanart})
-    url = '{0}?action=11'.format(control._url)
-    is_folder = False
-    listing.append((url, list_item, is_folder))
-
-    list_item = make_listitem(label='[COLOR yellow][B]ResolveURL / Debrid Settings[/B][/COLOR]')
-    item_icon = control._ipath + 'ccache.png'
-    list_item.setArt({'thumb': item_icon,
-                      'icon': item_icon,
-                      'poster': item_icon,
-                      'fanart': control._fanart})
-    url = '{0}?action=12'.format(control._url)
-    is_folder = False
-    listing.append((url, list_item, is_folder))
-
-    control.addDir(control._handle, listing, len(listing))
-    control.setContent(control._handle, 'addons')
-    control.eod(control._handle)
+    experience.home()
 
 
-def _search_site(site, results):
-    """Run a single site's search using the preset query. Appends
-    (site, mode, movie_tuple) rows to the shared results list."""
-    try:
-        scraper = eval('{}.{}()'.format(site, site))
-        menu, mode, icon = scraper.get_menu()
-        surl = None
-        for title, iurl in six.iteritems(menu):
-            if 'Search' in title:
-                surl = iurl.split('MMMM')[0]
-                break
+def _search_site(job, deadline, stop):
+    site, query = job
+    with client.request_budget(deadline, stop):
+        scraper = scraper_for(site)
+        scraper.get_SearchQuery = lambda _: query
+        menu, mode, icon = cache.get(scraper.get_menu, cache_duration)
+        surl = next((url.split('MMMM')[0] for title, url in menu.items() if 'Search' in title), None)
         if not surl:
-            return
+            return []
         movies, imode = scraper.get_items(surl)
-        for movie in movies:
-            if 'Next Page' in movie[0]:
-                continue
-            results.append((site, imode, movie))
-    except Exception:
-        return
+        return [(site, imode, movie) for movie in movies if 'Next Page' not in movie[0]]
 
 
 def global_search():
-    """Search every enabled site at once and merge the results."""
-    query = control.keyboard_query('Search All Sites')
+    query = control.keyboard_query('Search movies & shows')
     if not query:
+        experience.finish([])
         return
-    control.PRESET_QUERY = query
-    enabled = [s[2:] for s in sorted(sites) if control.get_setting(s[2:]) == 'true']
-    results = []
+    dialog = control.DialogProgress()
+    dialog.create('Searching your sources', query)
+    health = {item['site']: item for item in experience.database().items('health')}
+    enabled = [site for site in experience.enabled_sources()
+               if health.get(site, {}).get('available') is not False or time.time() - health[site]['updated'] >= 1800]
     try:
-        threads = []
-        for site in enabled:
-            t = Scraper.Thread(_search_site, site, results)
-            t.start()
-            threads.append(t)
-        for t in threads:
-            t.join()
+        jobs, partial = parallel.collect([(site, query) for site in enabled], _search_site,
+                                        workers=5, seconds=25, cancelled=dialog.iscanceled,
+                                        progress=lambda done, total: dialog.update(int(done * 100 / max(1,total)), '{} of {} sources finished'.format(done,total)))
     finally:
-        control.PRESET_QUERY = None
-
-    listing = []
-    for site, imode, movie in results:
-        title = movie[0]
-        label = '{0} [COLOR grey]({1})[/COLOR]'.format(title if title else 'Unknown', sitenames.get(site, site))
-        list_item = make_listitem(label=label)
-        iurl = movie[2]
-        nextmode = imode
-        if 'MMMM' in iurl:
-            iurl, nextmode = iurl.split('MMMM')
-        thumb = movie[1] if movie[1] else control._ipath + '{}.png'.format(site)
-        url = '{0}?action={1}&site={2}&title={3}&thumb={4}&iurl={5}'.format(
-            control._url, nextmode, site, urllib_parse.quote(title if title else 'Unknown'),
-            urllib_parse.quote(thumb), urllib_parse.quote(iurl))
-        list_item.setArt({'thumb': thumb, 'icon': thumb,
-                          'poster': thumb, 'fanart': control._fanart})
-        if imode == 9:
-            is_folder = False
-            list_item.setProperty('IsPlayable', 'true')
-        else:
-            is_folder = True
-        listing.append((url, list_item, is_folder))
-
-    if not listing:
-        control.notify('No results found for "{0}"'.format(query))
-    control.addDir(control._handle, listing, len(listing))
-    control.setContent(control._handle, 'movies')
-    control.eod(control._handle)
+        dialog.close()
+    results = [entry for _, entries in jobs if entries for entry in entries]
+    results.sort(key=lambda entry: (query.lower() not in entry[2][0].lower(), entry[2][0].lower(), entry[0]))
+    rows, seen = [], set()
+    for site, mode, movie in results:
+        key = (site, movie[2])
+        if key in seen:
+            continue
+        seen.add(key)
+        entry = experience.title_row(site, movie[0] or 'Unknown', movie[1] or control._icon, movie[2], mode)
+        entry[1].setLabel((movie[0] or 'Unknown') + ' [COLOR grey]• ' + sitenames[site] + '[/COLOR]')
+        rows.append(entry)
+    if not rows:
+        control.notify('No matches. Try a shorter title or another source.')
+    elif partial:
+        control.notify('Showing completed searches. Some sources did not finish.')
+    experience.finish(rows)
 
 
 def list_menu(site):
-    """
-    Create the Site menu in the Kodi interface.
-    """
-    scraper = eval('{}.{}()'.format(site, site))
+    scraper = scraper_for(site)
     menu, mode, icon = cache.get(scraper.get_menu, cache_duration)
-    listing = []
-    for title, iurl in sorted(six.iteritems(menu)):
-        digits = len(re.findall(r'^(\d*)', title)[0])
-        next_mode = mode
-
-        if 'MMMM' in iurl:
-            iurl, next_mode = iurl.split('MMMM')
-
-        if 'Adult' not in title:
-            list_item = make_listitem(label=title[digits:])
-            list_item.setArt({'thumb': icon,
-                              'icon': icon,
-                              'poster': icon,
-                              'fanart': control._fanart})
-            url = '{0}?action={1}&site={2}&iurl={3}'.format(control._url, next_mode, site, urllib_parse.quote(iurl))
-            if next_mode == 9:
-                is_folder = False
-                list_item.setProperty('IsPlayable', 'true')
-            else:
-                is_folder = True
-            listing.append((url, list_item, is_folder))
-
-        elif control.get_setting('adult') == 'true':
-            list_item = make_listitem(label=title[digits:])
-            list_item.setArt({'thumb': icon,
-                              'icon': icon,
-                              'poster': icon,
-                              'fanart': control._fanart})
-            url = '{0}?action={1}&site={2}&iurl={3}'.format(control._url, next_mode, site, urllib_parse.quote(iurl))
-            is_folder = True
-            listing.append((url, list_item, is_folder))
-
-    control.addDir(control._handle, listing, len(listing))
-    control.setContent(control._handle, 'videos')
-    control.eod(control._handle)
+    rows = []
+    for title, url in sorted(menu.items()):
+        if 'Adult' in title and control.get_setting('adult') != 'true':
+            continue
+        label = re.sub(r'^\d+', '', title)
+        nextmode = mode
+        if 'MMMM' in url:
+            url, nextmode = url.rsplit('MMMM', 1)
+        image = icon
+        if 'Search' in label:
+            label, image = 'Search this source', experience.art('search')
+        entry = experience.row(label, experience.route(nextmode, site=site, iurl=url), image,
+                               'Browse ' + sitenames.get(site, site) + '.', int(nextmode) != 9)
+        if int(nextmode) == 9:
+            entry[1].setProperty('IsPlayable', 'true')
+        rows.append(entry)
+    if not rows:
+        control.notify('This source is unavailable. Retry in Source availability.')
+    experience.finish(rows, 'videos')
 
 
 def list_top(site, iurl):
     """
     Create the Site menu in the Kodi interface.
     """
-    scraper = eval('{}.{}()'.format(site, site))
+    scraper = scraper_for(site)
     menu, mode = cache.get(scraper.get_top, cache_duration, iurl)
     listing = []
     for title, icon, iurl in menu:
@@ -366,160 +276,92 @@ def list_top(site, iurl):
 
 
 def list_second(site, iurl):
-    """
-    Create the Site menu in the Kodi interface.
-    """
-    scraper = eval('{}.{}()'.format(site, site))
+    scraper = scraper_for(site)
     menu, mode = cache.get(scraper.get_second, cache_duration, iurl)
-    listing = []
-    for title, icon, iurl in menu:
-        list_item = make_listitem(label=title)
-        list_item.setArt({'thumb': icon,
-                          'icon': icon,
-                          'poster': icon,
-                          'fanart': control._fanart})
-        nextmode = mode
-        if 'MMMM' in iurl:
-            iurl, nextmode = iurl.split('MMMM')
+    rows = []
+    for title, icon, page in menu:
         if 'Next Page' in title:
-            nextmode = 5
-        url = '{0}?action={1}&site={2}&iurl={3}'.format(control._url, nextmode, site, urllib_parse.quote(iurl))
-        is_folder = True
-        if mode == 9 and 'Next Page' not in title:
-            is_folder = False
-            list_item.setProperty('IsPlayable', 'true')
-        listing.append((url, list_item, is_folder))
-    control.addDir(control._handle, listing, len(listing))
-    control.setContent(control._handle, 'tvshows')
-    control.eod(control._handle)
+            rows.append(experience.row(title, experience.route(5, site=site, iurl=page), icon))
+        else:
+            rows.append(experience.title_row(site, title, icon, page, mode))
+    experience.finish(rows, 'tvshows')
 
 
 def list_third(site, iurl):
-    """
-    Create the Site menu in the Kodi interface.
-    """
-    scraper = eval('{}.{}()'.format(site, site))
+    scraper = scraper_for(site)
     menu, mode = cache.get(scraper.get_third, cache_duration, iurl)
-    listing = []
-    for title, icon, iurl in menu:
-        list_item = make_listitem(label=title)
-        list_item.setArt({'thumb': icon,
-                          'icon': icon,
-                          'poster': icon,
-                          'fanart': control._fanart})
-        nextmode = mode
+    rows = []
+    for title, icon, page in menu:
         if 'Next Page' in title:
-            nextmode = 6
-        url = '{0}?action={1}&site={2}&iurl={3}'.format(control._url, nextmode, site, urllib_parse.quote(iurl))
-        is_folder = True
-        if mode == 8 and 'Next Page' not in title:
-            url = '{0}?action={1}&site={2}&title={3}&thumb={4}&iurl={5}'.format(control._url, mode, site, urllib_parse.quote(title), urllib_parse.quote(icon), iurl)
-        if mode == 9 and 'Next Page' not in title:
-            is_folder = False
-            list_item.setProperty('IsPlayable', 'true')
-        listing.append((url, list_item, is_folder))
-    control.addDir(control._handle, listing, len(listing))
-    control.setContent(control._handle, 'tvshows')
-    control.eod(control._handle)
+            rows.append(experience.row(title, experience.route(6, site=site, iurl=page), icon))
+        else:
+            rows.append(experience.title_row(site, title, icon, page, mode))
+    experience.finish(rows, 'tvshows')
 
 
 def list_items(site, iurl):
-    """
-    Create the list of movies/episodes in the Kodi interface.
-    """
-    scraper = eval('{}.{}()'.format(site, site))
+    scraper = scraper_for(site)
     if iurl.endswith('='):
         movies, mode = scraper.get_items(iurl)
     else:
         movies, mode = cache.get(scraper.get_items, cache_duration, iurl)
-    listing = []
+    metadata = {}
+    if control.get_setting('meta') == 'true' and site in msites:
+        from resources.lib.metautils import get_meta
+        titles = list(dict.fromkeys(movie[0] for movie in movies if 'Next Page' not in movie[0]))
+        def lookup(title, deadline, stop):
+            with client.request_budget(deadline, stop):
+                return get_meta(title)
+        completed, _ = parallel.collect(titles, lookup, workers=4, seconds=12)
+        metadata = {title: value for title, value in completed if value}
+    rows = []
     for movie in movies:
-        title = movie[0]
-        if title == '':
-            title = 'Unknown'
-        list_item = make_listitem(label=title)
+        title, thumb, page = movie[:3]
         if 'Next Page' in title:
-            nextmode = 7
-            url = '{0}?action={1}&site={2}&iurl={3}'.format(control._url, nextmode, site, urllib_parse.quote(movie[2]))
-            update_listitem(list_item, {'title': title})
-            list_item.setArt({'thumb': movie[1],
-                              'icon': movie[1],
-                              'poster': movie[1],
-                              'fanart': control._fanart})
-        else:
-            nextmode = mode
-            iurl = movie[2]
-            if 'MMMM' in iurl:
-                iurl, nextmode = iurl.split('MMMM')
-            qtitle = urllib_parse.quote(title)
-            mthumb = movie[1].encode('utf8') if six.PY2 else movie[1]
-            url = '{0}?action={1}&site={2}&title={3}&thumb={4}&iurl={5}'.format(
-                control._url, nextmode, site, qtitle, urllib_parse.quote(mthumb), urllib_parse.quote(iurl)
-            )
-            fanart = control._fanart
-            poster = movie[1]
-            if control.get_setting('meta') == 'true' and site in msites:
-                from resources.lib.metautils import get_meta
-                meta = get_meta(title)
-                if meta and 'tmdb_id' in meta:
-                    if meta.get('art'):
-                        art = meta.pop('art')
-                        fanart = art.get('fanart')
-                        poster = art.get('poster')
-                    update_listitem(list_item, meta)
-                else:
-                    update_listitem(list_item, {'title': title, 'mediatype': 'video'})
-
-            list_item.setArt({
-                'thumb': movie[1],
-                'icon': movie[1],
-                'poster': poster,
-                'fanart': fanart
-            })
-        if mode == 9 and 'Next Page' not in title:
-            is_folder = False
-            list_item.setProperty('IsPlayable', 'true')
-            list_item.addContextMenuItems([('Save Video', 'RunPlugin(plugin://{0}/?action=10&iurl={1}ZZZZ{2})'.format(control._addonID, urllib_parse.quote_plus(iurl), title),)])
-        else:
-            is_folder = True
-        listing.append((url, list_item, is_folder))
-    control.addDir(control._handle, listing, len(listing))
-    control.setContent(control._handle, 'movies')
-    control.eod(control._handle)
+            rows.append(experience.row(title, experience.route(7, site=site, iurl=page), thumb, 'More titles from this source.'))
+            continue
+        entry = experience.title_row(site, title or 'Unknown', thumb, page, mode)
+        meta = metadata.get(title)
+        if meta and meta.get('tmdb_id'):
+            data = dict(meta)
+            art = data.pop('art', {}) or {}
+            update_listitem(entry[1], data)
+            entry[1].setArt({'poster': art.get('poster') or thumb,
+                            'fanart': art.get('fanart') or control._fanart})
+        rows.append(entry)
+    if not rows:
+        control.notify('No titles available here. Refresh or try another category.')
+    experience.finish(rows)
 
 
 def list_videos(site, title, iurl, thumb):
-    """
-    Create the list of playable videos in the Kodi interface.
-    """
-    scraper = eval('{}.{}()'.format(site, site))
-    videos = cache.get(scraper.get_videos, cache_duration, iurl)
-    # control.log(repr(videos), level='info')
+    experience.database().save('recent', experience.record(site, title, thumb, iurl, 8))
+    scraper = scraper_for(site)
+    videos = cache.get(scraper.get_videos, 1.0 / 60, iurl, _stale=False) or []
+    preferred = [0, 2160, 1080, 720, 480][experience.setting_int('preferred_quality', 0, 0, 4)]
+    rows = []
     if videos:
-        listing = []
-        for name, video in videos:
-            list_item = make_listitem(label=name)
-            list_item.setArt({'thumb': thumb,
-                              'icon': thumb,
-                              'poster': thumb,
-                              'fanart': thumb})
-            update_listitem(list_item, {'title': title})
-            list_item.setProperty('IsPlayable', 'true')
-            url = '{0}?action=9&iurl={1}'.format(control._url, urllib_parse.quote_plus(video))
-            if 'm3u8' not in video:
-                list_item.addContextMenuItems([('Save Video', 'RunPlugin(plugin://{0}/?action=10&iurl={1}ZZZZ{2})'.format(control._addonID, urllib_parse.quote_plus(video), title),)])
-            is_folder = False
-            listing.append((url, list_item, is_folder))
-
-        control.addDir(control._handle, listing, len(listing))
-        control.setContent(control._handle, 'videos')
-        control.eod(control._handle)
+        target = experience.route(14, site=site, title=title, thumb=thumb, iurl=iurl)
+        best = experience.row('Play best available', target, experience.art('play'), 'Try working servers automatically in your preferred quality.', False)
+        best[1].setProperty('IsPlayable', 'true')
+        rows.append(best)
+    for name, video in streams.rank(videos, preferred):
+        item = make_listitem(label=name)
+        item.setArt({'thumb': thumb, 'icon': thumb, 'poster': thumb, 'fanart': control._fanart})
+        update_listitem(item, {'title': title, 'plot': 'Play this server. Use Play best available for automatic fallback.'})
+        item.setProperty('IsPlayable', 'true')
+        target = experience.route(9, iurl=video, title=title)
+        rows.append((target, item, False))
+    if not videos:
+        control.notify('No video servers found for this title. Try another source.')
+    experience.finish(rows, 'videos')
 
 
-def resolve_url(url, subs=False):
+def resolve_url(url, subs=False, quiet=False):
     hmf = check_hosted_media(url, subs)
     if not hmf:
-        control.ok('Indirect hoster_url not supported by smr: {0}'.format(url), 'Resolve URL')
+        if not quiet:
+            control.notify('This video host is not supported by ResolveURL.')
         return False
 
     try:
@@ -534,14 +376,16 @@ def resolve_url(url, subs=False):
                 msg = 'File removed'
             else:
                 msg = str(stream_url)
-            control.notify(msg, 'Resolve URL', 5000)
+            if not quiet:
+                control.notify(msg, 'Resolve URL', 5000)
             return False
     except Exception as e:
         try:
             msg = str(e)
         except:
             msg = url
-        control.notify(msg, 'Resolve URL', 5000)
+        if not quiet:
+            control.notify(msg, 'Resolve URL', 5000)
         return False
 
     if subs:
@@ -757,7 +601,7 @@ def downloadVideo(url, name):
         control.notify('Download:', 'File already exists!')
 
 
-def play_video(vid_url, dl=False):
+def play_video(vid_url, dl=False, resolve_only=False, quiet=False, title=None):
     """
     Play a video by the provided path.
     """
@@ -772,10 +616,10 @@ def play_video(vid_url, dl=False):
         'hum.tv', 'apnevideotwo.', 'player.business', 'tamilian.'
     ]
     # Create a playable item with a path to play.
-    title = 'unknown'
-    vid_url = urllib_parse.unquote_plus(vid_url)
+    title = title or 'unknown'
+    stream_url = False
     if 'ZZZZ' in vid_url:
-        vid_url, title = vid_url.split('ZZZZ')
+        vid_url, title = vid_url.split('ZZZZ', 1)
 
     play_item = make_listitem(path=vid_url)
 
@@ -805,15 +649,16 @@ def play_video(vid_url, dl=False):
             stream_url = urllib_parse.quote(vid_url, ':/|=?')
             play_item.setPath(stream_url)
         elif 'player.business' in vid_url:
-            headers = control.mozhdr
+            headers = dict(control.mozhdr)
             spage = client.request(vid_url, headers=headers)
             matches = re.findall(r'"src":"([^"]+)","label":"([^"]+)', spage)
             if len(matches) > 1:
                 sources = []
                 for match in matches:
                     sources.append(match[1])
-                dialog = control.Dialog()
-                ret = dialog.select('Choose a Source', sources)
+                ret = 0 if quiet else control.Dialog().select('Choose a Source', sources)
+                if ret < 0:
+                    return None
                 match = matches[ret]
             else:
                 match = matches[0]
@@ -823,7 +668,7 @@ def play_video(vid_url, dl=False):
         #     scraper = tyogi.tyogi()  # NoQA
         #     stream_url = scraper.get_video(vid_url)
         #     if stream_url:
-        #         stream_url = resolve_url(stream_url)
+        #         stream_url = resolve_url(stream_url, quiet=quiet)
         #         if stream_url:
         #             play_item.setPath(stream_url)
         #         else:
@@ -833,7 +678,7 @@ def play_video(vid_url, dl=False):
             stream_url = scraper.get_video(vid_url)
             if stream_url:
                 if 'youtube.' in stream_url:
-                    stream_url = resolve_url(stream_url)
+                    stream_url = resolve_url(stream_url, quiet=quiet)
                 play_item.setPath(stream_url)
         elif 'tamilgun.' in vid_url:
             if '.m3u8' in vid_url:
@@ -847,7 +692,7 @@ def play_video(vid_url, dl=False):
             scraper = ary.ary()  # NoQA
             stream_url = scraper.get_video(vid_url)
             if check_hosted_media(stream_url):
-                stream_url = resolve_url(stream_url)
+                stream_url = resolve_url(stream_url, quiet=quiet)
             if stream_url:
                 play_item.setPath(stream_url)
             else:
@@ -862,7 +707,7 @@ def play_video(vid_url, dl=False):
             if stream_url:
                 embeds = ['youtube.', 'dailymotion', 'youtu.be']
                 if any(x for x in embeds if x in stream_url):
-                    stream_url = resolve_url(stream_url)
+                    stream_url = resolve_url(stream_url, quiet=quiet)
                 if stream_url:
                     play_item.setPath(stream_url)
                 else:
@@ -873,14 +718,14 @@ def play_video(vid_url, dl=False):
             stream_url = vid_url
             play_item.setPath(stream_url)
         elif 'load.' in vid_url:
-            stream_url = resolve_url(vid_url)
+            stream_url = resolve_url(vid_url, quiet=quiet)
             if stream_url:
                 play_item.setPath(stream_url)
             else:
                 play_item.setPath(None)
         elif '.mp4' in vid_url:
             if '|' not in vid_url and check_hosted_media(vid_url):
-                stream_url = resolve_url(vid_url)
+                stream_url = resolve_url(vid_url, quiet=quiet)
             else:
                 stream_url = vid_url
             if stream_url:
@@ -892,7 +737,7 @@ def play_video(vid_url, dl=False):
             play_item.setPath(stream_url)
     else:
         stream_url = False
-        resp = resolve_url(vid_url, subs=True)
+        resp = resolve_url(vid_url, subs=True, quiet=quiet)
         if resp:
             stream_url = resp.get('url')
             subtitles = resp.get('subs')
@@ -955,4 +800,6 @@ def play_video(vid_url, dl=False):
                 play_item.setMimeType('application/vnd.ms-sstr+xml')
                 play_item.setContentLookup(False)
 
+        if resolve_only:
+            return play_item
         control.setResolvedUrl(control._handle, True, listitem=play_item)

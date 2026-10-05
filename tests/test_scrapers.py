@@ -24,7 +24,8 @@ client.request = lambda *args, **kwargs: None
 cache = types.ModuleType('resources.lib.cache')
 cache.get = lambda fn, hours, *args: fn(*args)
 kodi = types.ModuleType('kodi_six')
-kodi.xbmcvfs = types.SimpleNamespace(exists=lambda path: False)
+kodi.xbmcvfs = types.SimpleNamespace(exists=lambda path: False, translatePath=lambda path: path)
+kodi.xbmc = types.SimpleNamespace(sleep=lambda ms: None)
 for name, module in [('resources.lib.control', control), ('resources.lib.client', client),
                      ('resources.lib.cache', cache), ('kodi_six', kodi)]:
     sys.modules[name] = module

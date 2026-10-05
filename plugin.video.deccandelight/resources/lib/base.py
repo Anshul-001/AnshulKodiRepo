@@ -49,6 +49,18 @@ def probe_mirrors(mirrors, probe_path, marker):
     return None
 
 
+def probe_mirror_state(mirrors, path, marker):
+    # Memoize an outage briefly, but never memoize a cancelled/budgeted probe.
+    base = probe_mirrors(mirrors, path, marker)
+    policy = getattr(getattr(client, '_request_context', None), 'policy', None)
+    if policy:
+        import time
+        deadline, stopped = policy
+        if time.monotonic() >= deadline or (stopped and stopped.is_set()):
+            return None
+    return {'base': base}
+
+
 # Remote-controlled mirror registry. A single JSON file committed at the repo
 # root maps a site key -> {probe, marker, mirrors}. When a site hops domains we
 # edit this one file and every user picks up the change within the cache window,
@@ -97,11 +109,11 @@ class Scraper(object):
 
     def __init__(self):
         self.ipath = control._ipath
-        self.hdr = control.mozhdr
-        self.dhdr = control.droidhdr
-        self.jhdr = control.jiohdr
-        self.ihdr = control.ioshdr
-        self.chdr = control.chromehdr
+        self.hdr = dict(control.mozhdr)
+        self.dhdr = dict(control.droidhdr)
+        self.jhdr = dict(control.jiohdr)
+        self.ihdr = dict(control.ioshdr)
+        self.chdr = dict(control.chromehdr)
         self.PY2 = control.PY2
         self.parser = _html_parser
         self.settings = control.get_setting
@@ -112,60 +124,38 @@ class Scraper(object):
         self.log = control.log
 
     def first_working_mirror(self, mirrors, probe_path='', marker='</'):
-        """Return the first mirror serving expected content, cached for 8 hours.
-        Falls back to the last known-good mirror (stale cache), then mirrors[0]."""
         from resources.lib import cache
-        base = cache.get(probe_mirrors, 8, mirrors, probe_path, marker)
-        return base or mirrors[0]
+        state = cache.get(probe_mirror_state, 0.5, mirrors, probe_path, marker, _stale=False) or {}
+        return state.get('base') or (mirrors[0] if mirrors else '')
 
     def resolve_domain(self, site, fallback_mirrors, probe_path='', marker='</'):
-        """Remote-controlled mirror resolver.
-
-        Pulls the remote config for ``site`` from mirrors.json (cached ~12h). If
-        present, uses the remote mirror list (remote entries first, then any
-        local ``fallback_mirrors`` not already present, de-duped) plus the remote
-        probe/marker override. If the remote fetch fails or lacks the site, falls
-        back to ``fallback_mirrors`` / ``probe_path`` / ``marker`` -- i.e. today's
-        behavior, so nothing regresses offline. Then reuses the existing
-        cached-probe (same semantics as ``first_working_mirror``) to pick the
-        first working mirror. Never crashes: on total failure returns the first
-        candidate."""
-        try:
-            cfg = remote_site_config(site)
-        except Exception:
-            cfg = None
-
-        probe, mark = probe_path, marker
-        mirrors = []
-        if cfg:
-            # only accept string mirror entries, so a malformed registry can't
-            # inject a non-string base that later crashes url concatenation
-            mirrors = [m for m in cfg.get('mirrors', []) if isinstance(m, str) and m]
-            probe = cfg.get('probe') or probe_path
-            mark = cfg.get('marker') or marker
-        for m in fallback_mirrors:
-            if m not in mirrors:
-                mirrors.append(m)
-
-        if not mirrors:
-            return fallback_mirrors[0] if fallback_mirrors else ''
-
-        try:
-            base = self.first_working_mirror(mirrors, probe, mark)
-        except Exception:
-            base = mirrors[0]
-        if not isinstance(base, str):
-            base = fallback_mirrors[0] if fallback_mirrors else mirrors[0]
-        return base
+        from resources.lib import cache
+        cfg = remote_site_config(site) or {}
+        remote = [m for m in cfg.get('mirrors', []) if isinstance(m, str) and m.startswith(('https://', 'http://'))]
+        probe = cfg.get('probe', probe_path)
+        mark = cfg.get('marker', marker)
+        if remote and isinstance(probe, str) and isinstance(mark, str) and mark:
+            state = cache.get(probe_mirror_state, 0.5, remote, probe, mark, _stale=False) or {}
+            if state.get('base'):
+                return state['base']
+        # An old/offline remote registry must not override a working local
+        # domain with an obsolete path or template marker.
+        state = cache.get(probe_mirror_state, 0.5, fallback_mirrors, probe_path, marker, _stale=False) or {}
+        return state.get('base') or (fallback_mirrors[0] if fallback_mirrors else (remote[0] if remote else ''))
 
     class Thread(threading.Thread):
         def __init__(self, target, *args):
             threading.Thread.__init__(self)
             self._target = target
             self._args = args
+            self._policy = getattr(getattr(client, '_request_context', None), 'policy', None)
 
         def run(self):
-            self._target(*self._args)
+            if self._policy:
+                with client.request_budget(*self._policy):
+                    self._target(*self._args)
+            else:
+                self._target(*self._args)
 
         def terminate(self):
             pass

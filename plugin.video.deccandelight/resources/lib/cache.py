@@ -15,6 +15,8 @@
 """
 
 import hashlib
+import os
+from contextlib import closing
 import json
 import pickle
 import re
@@ -33,100 +35,75 @@ cacheFile = TRANSLATEPATH(xbmcaddon.Addon().getAddonInfo('profile') + '/cache.db
 cache_table = 'cache'
 
 
-def get(function, duration, *args, **kwargs):
-    # type: (function, int, object) -> object or None
-    """
-    Gets cached value for provided function with optional arguments, or executes and stores the result
-    :param function: Function to be executed
-    :param duration: Duration of validity of cache in hours
-    :param args: Optional arguments for the provided function
-    :param kwargs: Optional keyword arguments for the provided function
-    """
-
-    key = _hash_function(function, *args, **kwargs)
-    cache_result = cache_get(key)
-
-    if cache_result:
-        if _is_cache_valid(cache_result['date'], duration):
-            return pickle.loads(zlib.decompress(cache_result['value']))
-
-    fresh_result = function(*args, **kwargs)
-
-    if not fresh_result:
-        # If the cache is old, but we didn't get fresh result, return the
-        # old cache
-        if cache_result:
-            return pickle.loads(zlib.decompress(cache_result['value']))
+def _decode(row):
+    try:
+        return pickle.loads(zlib.decompress(row['value']))
+    except (ValueError, TypeError, KeyError, zlib.error, pickle.UnpicklingError, EOFError):
         return None
 
-    cache_insert(key, Binary(zlib.compress(pickle.dumps(fresh_result))))
-    return fresh_result
+
+def _has_content(value):
+    if isinstance(value, tuple) and len(value) == 2 and isinstance(value[0], (list, dict)):
+        return bool(value[0])
+    return bool(value)
+
+
+def get(function, duration, *args, **kwargs):
+    # Streams can opt out of stale fallback without changing scraper kwargs.
+    stale = kwargs.pop('_stale', True)
+    key = _hash_function(function, *args, **kwargs)
+    row = cache_get(key)
+    cached = _decode(row) if row else None
+    if cached is not None and _is_cache_valid(row['date'], duration):
+        return cached
+    fresh = function(*args, **kwargs)
+    if not _has_content(fresh):
+        return cached if stale and cached is not None else fresh
+    cache_insert(key, Binary(zlib.compress(pickle.dumps(fresh))))
+    return fresh
 
 
 def remove(function, *args, **kwargs):
     key = _hash_function(function, *args, **kwargs)
-    cursor = _get_connection_cursor()
-    cursor.execute("DELETE FROM %s WHERE key = ?" % cache_table, [key])
-    cursor.connection.commit()
-
-
-def timeout(function, *args, **kwargs):
-    key = _hash_function(function, *args, **kwargs)
-    result = cache_get(key)
-    return int(result['date'])
-
-
-def cache_get(key):
-    # type: (str, str) -> dict or None
-    try:
-        cursor = _get_connection_cursor()
-        cursor.execute("SELECT * FROM %s WHERE key = ?" % cache_table, [key])
-        return cursor.fetchone()
-    except OperationalError:
-        return None
-
-
-def cache_insert(key, value):
-    # type: (str, str) -> None
-    cursor = _get_connection_cursor()
-    now = int(time.time())
-    cursor.execute(
-        "CREATE TABLE IF NOT EXISTS %s (key TEXT, value BINARY, date INTEGER, UNIQUE(key))" %
-        cache_table)
-    cursor.execute(
-        "CREATE UNIQUE INDEX if not exists index_key ON %s (key)" % cache_table)
-    update_result = cursor.execute(
-        "UPDATE %s SET value=?,date=? WHERE key=?"
-        % cache_table, (value, now, key))
-
-    if update_result.rowcount == 0:
-        cursor.execute(
-            "INSERT INTO %s Values (?, ?, ?)"
-            % cache_table, (key, value, now)
-        )
-
-    cursor.connection.commit()
-
-
-def cache_clear():
-    cursor = _get_connection_cursor()
-
-    for t in [cache_table, 'rel_list', 'rel_lib']:
+    with closing(_get_connection()) as conn:
         try:
-            cursor.execute("DROP TABLE IF EXISTS %s" % t)
-            cursor.execute("VACUUM")
-            cursor.commit()
-        except BaseException:
+            conn.execute('DELETE FROM cache WHERE key=?', (key,))
+            conn.commit()
+        except OperationalError:
             pass
 
 
-def _get_connection_cursor():
-    conn = _get_connection()
-    return conn.cursor()
+def timeout(function, *args, **kwargs):
+    row = cache_get(_hash_function(function, *args, **kwargs))
+    return int(row['date']) if row else 0
+
+
+def cache_get(key):
+    with closing(_get_connection()) as conn:
+        try:
+            return conn.execute('SELECT * FROM cache WHERE key=?', (key,)).fetchone()
+        except OperationalError:
+            return None
+
+
+def cache_insert(key, value):
+    with closing(_get_connection()) as conn:
+        conn.execute('CREATE TABLE IF NOT EXISTS cache (key TEXT PRIMARY KEY, value BINARY, date INTEGER)')
+        conn.execute('INSERT OR REPLACE INTO cache VALUES(?,?,?)', (key, value, int(time.time())))
+        conn.commit()
+
+
+def cache_clear():
+    with closing(_get_connection()) as conn:
+        for table in (cache_table, 'rel_list', 'rel_lib'):
+            conn.execute('DROP TABLE IF EXISTS ' + table)
+        conn.commit()
+        conn.execute('VACUUM')
 
 
 def _get_connection():
-    conn = db.connect(cacheFile)
+    os.makedirs(os.path.dirname(cacheFile) or '.', exist_ok=True)
+    conn = db.connect(cacheFile, timeout=10)
     conn.row_factory = _dict_factory
     return conn
 

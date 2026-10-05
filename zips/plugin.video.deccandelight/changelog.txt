@@ -1,3 +1,20 @@
+[B]Version 2.3.0 - 04 Oct 2026[/B]
+- New home: Movies, TV & shows, Music, Search, Watchlist, Recently opened,
+  Favorite sources and Settings & tools, with original cinematic artwork.
+- One-click playback with preferred quality ordering, fresh server discovery,
+  media checks and fallback when a resolver or server fails. Manual selection
+  remains available from the title context menu.
+- Save stable title pages to a local watchlist; revisit recently opened titles
+  and favorite your providers. Collections survive cache clearing.
+- Faster bounded concurrent search and movie metadata, cancellation/progress,
+  stable deduplication and request time budgets.
+- Source availability checks and retry actions. Unavailable providers remain
+  subject to network and website availability.
+- Fix signed-URL decoding and query handling, isolate HTTP cookie/TLS state,
+  close cache database connections and avoid stale/failed stream cache entries.
+- Working local mirrors survive an obsolete or unreachable remote registry.
+- Cleaner provider settings; metadata uses HTTPS and per-worker connections.
+
 [B]Version 2.2.2 - 04 Oct 2026[/B]
 - Restore TamilGun, TodayPK, DesiTellyBox, Hindi Geetmala, YoDesi and
   ARY browsing after changes to their website layouts.

@@ -1,0 +1,24 @@
+Indian Movie Hub quality and UX update
+
+Implement these improvements alongside the source-link repairs:
+1. A clear home screen with Movies, TV & Shows, Music, Search, Watchlist,
+   Recently opened, Favorite sources and Tools. Consistent original vector
+   artwork, useful descriptions, uncluttered source names and native skin support.
+2. Local watchlist/recent-title storage and favorite providers. Save stable
+   source pages, never expiring video URLs. Add context actions for save/remove,
+   manual server selection and refresh. Preserve existing accounts and settings.
+3. One-click playback with quality preference, direct-host priority and automatic
+   fallback when a resolver or stream check fails. Keep manual selection available;
+   expose cancellation and a useful no-working-server message. Fresh stream data.
+4. Bounded concurrent global search and metadata lookups, progress/cancel support,
+   deterministic deduplication and per-request time budgets. Reuse metadata cache.
+5. Correct signed-URL handling, scoped HTTP openers/headers and cache connections;
+   avoid persisting failures or endlessly reusing expired stream data.
+6. Source status and retry/refresh tools that explain unavailable providers without
+   changing the network filter. Keep functional sources discoverable and record
+   checked availability rather than inventing replacement domains.
+
+Verification gates: meaningful offline regression/integration tests, representative
+live source/server checks, source/manifest/ZIP validation, and actual Kodi UI and
+playback checks. Release all source/registry/artifact changes together. Update
+project handoff with verified device/release state and remaining external limits.
